@@ -5,7 +5,6 @@ namespace RealVirtualMagic
 {
 	bool runOnce = false; 
 
-	double latestBrainPower = 0.0;
 	bool isInCombat = false;
 
 	std::atomic<bool> LeftHandSpellCastingOn;
@@ -125,7 +124,7 @@ namespace RealVirtualMagic
 
 	void GameLoad()
 	{
-		if ((bool)useDebugger)
+		if (useDebugger.get()->boolValue())
 		{
 			WaitForDebugger(true);
 		}
@@ -135,8 +134,7 @@ namespace RealVirtualMagic
 			runOnce = true;
 
 			//This stuff runs only once after game loaded
-			LoadGlobalValues();
-
+			LoadValues();
 		}
 	}
 
@@ -163,7 +161,7 @@ namespace RealVirtualMagic
 	void LeftHandedModeChange()
 	{
 		const int value = vlibGetSetting("bLeftHandedMode:VRInput");
-		if (value != leftHandedMode)
+		if ((value==1) != leftHandedMode)
 		{
 			leftHandedMode = value;
 			LOG_ERR("Left Handed Mode is %s.", leftHandedMode ? "ON" : "OFF");
@@ -205,7 +203,7 @@ namespace RealVirtualMagic
 			}
 
 			// we need the option to run the mod to provide events, but not apply the actual brain power
-			if (useBCI == 1) {
+			if (useBCI.get()->boolValue()) {
 				
 				// this will be true only when the LSL stream is there
 				if (IXRInitialized)
@@ -213,7 +211,12 @@ namespace RealVirtualMagic
 					latestBrainPower = GetFocusValue();
 
 					LOG("------------------");
-					LOG("latest focus value: %f", latestBrainPower);
+					LOG("latest focus value: %g", latestBrainPower);
+					if (latestBrainPower > 1.0 || latestBrainPower < 0.0)
+					{
+						LOG_ERR("Error, getting a weird focus value: %g. Clamping.", latestBrainPower);
+						latestBrainPower = clamp(latestBrainPower, 0.0, 1.0);
+					}
 
 					ApplyFocusValue(latestBrainPower);
 
@@ -221,20 +224,23 @@ namespace RealVirtualMagic
 				}
 				else
 				{
-					LOG_ERR("IXR not initialized. Attempting to create LSL system.");
-					LOG_ERR("Setting focus to 0.5 to allow playing");
-					ApplyFocusValue(0.5f);
+					LOG("IXR not initialized. Attempting to create LSL system.");
+					LOG("Setting focus to -999.0 to disable all effects");
+					ApplyFocusValue(-999.0);
 					// set up the LSL stream
 					CreateSystem();
 				}
 			}
-			
+			else
+			{
+				//LOG_ERR("Current magicka: %g", GetCurrentMagicka());
+				Sleep(1000);
+			}			
 		}
 	}
 
 	void StartFunction()
-	{
-		
+	{		
 		LeftHandedModeChange();
 
 		//You can create a thread here like this and run all your game logic in that
@@ -256,14 +262,20 @@ namespace RealVirtualMagic
 		SafeWrite64(IAnimationGraphManagerHolder_NotifyAnimationGraph_vtbl.GetUIntPtr(), uintptr_t(Hooked_IAnimationGraphManagerHolder_NotifyAnimationGraph));
 	}
 
-	float GetBrainPower(StaticFunctionTag* base)
-	{
-		return latestBrainPower;
-	}
+	
 
 	bool RegisterFuncs(VMClassRegistry* registry)
 	{
 		registry->RegisterFunction(new NativeFunction0<StaticFunctionTag, float>("GetBrainPower", "RealVirtualMagic_PluginScript", GetBrainPower, registry));
+
+		registry->RegisterFunction(new NativeFunction3<StaticFunctionTag, void, BSFixedString, UInt32, float>("SetValue", "RealVirtualMagic_PluginScript", SetValue, registry));
+
+		registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, float, BSFixedString>("GetValue", "RealVirtualMagic_PluginScript", GetValue, registry));
+
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, float, BSFixedString>("GetSettingDefault", "RealVirtualMagic_PluginScript", GetSettingDefault, registry));
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, float, BSFixedString>("GetSettingMin", "RealVirtualMagic_PluginScript", GetSettingMin, registry));
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, float, BSFixedString>("GetSettingMax", "RealVirtualMagic_PluginScript", GetSettingMax, registry));
+		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, float, BSFixedString>("GetSettingInterval", "RealVirtualMagic_PluginScript", GetSettingInterval, registry));
 
 		LOG("RealVirtualMagic registerFunction");
 		return true;
@@ -273,19 +285,37 @@ namespace RealVirtualMagic
 	{
 		WriteEventMarker("magicCast:start");
 
-		if (useBCI == 1 && IXRInitialized && latestBrainPower < unstableMagicThreshold)
+		if (useBCI.get()->boolValue() && IXRInitialized && damageHealth.get()->boolValue() && latestBrainPower < unstableMagicThreshold.get()->value)
 		{
-			float maxhealth = GetMaxHealth();
-			float healthdamage = maxhealth * unstableMagicDamage / 100;
-			LOG("damaging health by %f percent, resulting in a damage of %f health", unstableMagicDamage, healthdamage);
-			LOG("current health: %f", GetCurrentHealth());
-			std::thread t3(ChangeCurrentHealth, -healthdamage);
-			t3.detach();
-			//ChangeCurrentHealth(-healthdamage);
-			LOG("new current health after changing: %f", GetCurrentHealth());
+			float healthdamage = GetMaxHealth() * unstableMagicDamage.get()->value / 100;
+
+			if (damageHealth.get()->boolValue())
+			{
+				if (healthSpell)
+				{
+					ChangeSpellEffects(healthSpell, HealthDecEffect, HealthDecEffect, healthdamage);
+					if (healthSpell->effectItemList.count > 0)
+					{
+						MagicItem::EffectItem* effectItem = nullptr;;
+						if (healthSpell->effectItemList.GetNthItem(0, effectItem))
+						{
+							if (effectItem)
+							{
+								effectItem->magnitude = healthdamage;
+							}
+						}
+					}
+
+					const auto playerRefr = DYNAMIC_CAST((*g_thePlayer), Actor, TESObjectREFR);
+					if (playerRefr)
+					{
+						LOG("Applying health damage: %g", healthdamage);
+						g_task->AddTask(new taskDoCombatSpellApply(healthSpell, (Actor*)(*g_thePlayer), GetOrCreateRefrHandle(playerRefr)));
+					}
+				}
+			}
 		}
 	}
-
 
 	void EndCast()
 	{
@@ -294,69 +324,129 @@ namespace RealVirtualMagic
 
 	void ApplyFocusValue(double newFocus)
 	{
-		LOG("applying focus value of %f", newFocus);
-		if ((*g_thePlayer) != nullptr && (*g_thePlayer)->loadedState != nullptr && !isGameStopped()) //Player is alive and Menu is not open
+		if ((*g_thePlayer) != nullptr && (*g_thePlayer)->loadedState != nullptr && !isGameStoppedNoDialogue()) //Player is alive and Menu is not open
 		{
-			/*
-			// applying magicka regen
-			BSFixedString magickaRegenRate("fCombatMagickaRegenRateMult");
-
-			SettingCollectionMap* settings = *g_gameSettingCollection;
-			if (settings)
+			LOG("applying focus value of %g", newFocus);
+			const bool disableAllEffects = (outOfCombatActive.get()->boolValue() == false && isInCombat == false) || newFocus < -900.0 || configSavingMode.load();
+			LOG("disableAllEffects: %d", disableAllEffects);
+			if (modifyMagicPower.get()->boolValue() && !disableAllEffects)
 			{
-				Setting* dsetting = settings->Get(magickaRegenRate.data);
-				if (dsetting)
-				{
-					//Getting:
-					//double jumpDist = 0.0;
-					//dsetting->GetDouble(&jumpDist);
+				const float newMagicPowerMagnitude = minSpellpower.get()->value + newFocus * (maxSpellpower.get()->value - minSpellpower.get()->value);
 
-					//Setting:
-					dsetting->SetDouble(1.0);
-				}
-			}
-			*/
-
-			// applying magic power
-			float currentdestruction = GetDestruction();
-			float newdestruction = minSpellpower + newFocus * (maxSpellpower - minSpellpower);
-			LOG("destruction: %f", currentdestruction);
-			LOG("setting magic power: %f", newdestruction);
-			SetAllMagickPower(newdestruction);
-
-			// applying magicka regen
-			LOG("magicka rate: %f", GetMagickaRate());
-			float newmagickarate = minMagickaRate + newFocus * (maxMagickaRate - minMagickaRate);
-			if (newmagickarate > 0)
-			{
-				LOG("setting magicka rate: %f", newmagickarate);
-				SetMagickaRate(newmagickarate);
+				UpdatePlayerSpellEffects(alterationPowerSpell, alterationPowerIncEffect, alterationPowerDecEffect, newMagicPowerMagnitude, (maxSpellpower.get()->value - minSpellpower.get()->value) * minimumUpdatePercent.get()->value);
+				UpdatePlayerSpellEffects(conjurationPowerSpell, conjurationPowerIncEffect, conjurationPowerDecEffect, newMagicPowerMagnitude, (maxSpellpower.get()->value - minSpellpower.get()->value) * minimumUpdatePercent.get()->value);
+				UpdatePlayerSpellEffects(destructionPowerSpell, destructionPowerIncEffect, destructionPowerDecEffect, newMagicPowerMagnitude, (maxSpellpower.get()->value - minSpellpower.get()->value) * minimumUpdatePercent.get()->value);
+				UpdatePlayerSpellEffects(illusionPowerSpell, illusionPowerIncEffect, illusionPowerDecEffect, newMagicPowerMagnitude, (maxSpellpower.get()->value - minSpellpower.get()->value) * minimumUpdatePercent.get()->value);
+				UpdatePlayerSpellEffects(restorationPowerSpell, restorationPowerIncEffect, restorationPowerDecEffect, newMagicPowerMagnitude, (maxSpellpower.get()->value - minSpellpower.get()->value) * minimumUpdatePercent.get()->value);
 			}
 			else
 			{
-				// manual damage to magicka
-				float maxmagicka = GetMaxMagicka();
-				float magickadamage = (maxmagicka - (maxmagicka * (100 + newmagickarate) / 100)) / 20; // we expect a new focus value every 50ms so this should damage 1/20 of the desired damage, TODO make this dependent on the passed time
-				LOG("new magicka rate negative, damaging magicka by %f percent, resulting in a damage of %f magicka", newmagickarate, magickadamage);
-				LOG("setting magicka rate: %f", 0);
-				SetMagickaRate(0);
-				LOG("current magicka: %f", GetCurrentMagicka());
-				if (GetCurrentMagicka() > 10)
+				if (DoesPlayerHaveEffects(alterationPowerDecEffect, alterationPowerIncEffect))
 				{
-					ChangeCurrentMagicka(-magickadamage);
-					LOG("new current magicka after changing: %f", GetCurrentMagicka());
+					g_task->AddTask(new taskRemoveSpell(alterationPowerSpell));
 				}
-				else
+
+				if (DoesPlayerHaveEffects(conjurationPowerDecEffect, conjurationPowerIncEffect))
 				{
-					LOG("magicka was below 10, did not damage to prevent crashes");
+					g_task->AddTask(new taskRemoveSpell(conjurationPowerSpell));
+				}
+
+				if (DoesPlayerHaveEffects(destructionPowerDecEffect, destructionPowerIncEffect))
+				{
+					g_task->AddTask(new taskRemoveSpell(destructionPowerSpell));
+				}
+
+				if (DoesPlayerHaveEffects(illusionPowerDecEffect, illusionPowerIncEffect))
+				{
+					g_task->AddTask(new taskRemoveSpell(illusionPowerSpell));
+				}
+
+				if (DoesPlayerHaveEffects(restorationPowerDecEffect, restorationPowerIncEffect))
+				{
+					g_task->AddTask(new taskRemoveSpell(restorationPowerSpell));
+				}
+			}
+
+			if (modifyMagickaRate.get()->boolValue() && !disableAllEffects)
+			{
+				float newMagickaRate = minMagickaRate.get()->value + newFocus * (maxMagickaRate.get()->value - minMagickaRate.get()->value);
+
+				UpdatePlayerSpellEffects(magickaRateSpell, magickaRateIncEffect, magickaRateDecEffect, newMagickaRate, (maxMagickaRate.get()->value - minMagickaRate.get()->value) * minimumUpdatePercent.get()->value);
+
+				if (newMagickaRate < 0)
+				{
+					if (modifyMagicka.get()->boolValue())
+					{
+						if (magickaSpell)
+						{
+							const float curMagicka = GetCurrentMagicka();
+							const float maxmagicka = GetMaxMagicka();
+							const float damagePercent = abs(newMagickaRate)/ 100.0f; 
+							const float magickadamage = maxmagicka * damagePercent;
+
+							//LOG_ERR("Target magicka: %g Current magicka: %g", maxmagicka - magickadamage, curMagicka);
+							if (curMagicka > maxmagicka - magickadamage)
+							{
+								ChangeSpellEffects(magickaSpell, magickaDecEffect, magickaDecEffect, magickadamage / 20.0f);
+
+								const auto playerRefr = DYNAMIC_CAST((*g_thePlayer), Actor, TESObjectREFR);
+								if (playerRefr)
+								{
+									LOG("Applying magicka damage: %g", magickadamage / 20.0f);
+									g_task->AddTask(new taskDoCombatSpellApply(magickaSpell, (Actor*)(*g_thePlayer), GetOrCreateRefrHandle(playerRefr)));
+								}
+							}
+							//else
+								//LOG_ERR("No need to apply magicka damage.");
+						}
+					}
+				}
+			}
+			else
+			{
+				//if (HasSpell((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), magickaRateSpell))
+				if (DoesPlayerHaveEffects(magickaRateIncEffect, magickaRateDecEffect))
+				{
+					g_task->AddTask(new taskRemoveSpell(magickaRateSpell));
+				}
+			}
+
+			if (modifyShoutRecovery.get()->boolValue() && !disableAllEffects)
+			{
+				const float newShoutRecoveryMagnitude = minShoutRecovery.get()->value + newFocus * (maxShoutRecovery.get()->value - minShoutRecovery.get()->value);
+
+				UpdatePlayerSpellEffects(shoutRecoverySpell, shoutRecoveryIncEffect, shoutRecoveryDecEffect, newShoutRecoveryMagnitude, (maxShoutRecovery.get()->value - minShoutRecovery.get()->value) * minimumUpdatePercent.get()->value);
+			}
+			else
+			{
+				if (DoesPlayerHaveEffects(shoutRecoveryDecEffect, shoutRecoveryIncEffect))
+				{
+					g_task->AddTask(new taskRemoveSpell(shoutRecoverySpell));
+				}
+			}
+
+			if (activateShield.get()->boolValue() && newFocus >= shieldActivationFocus.get()->value && !disableAllEffects)
+			{
+				//if (!HasSpell((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), shieldSpell))
+				if(!DoesPlayerHaveEffect(shieldEffect))
+				{
+					g_task->AddTask(new taskAddSpell(shieldSpell));
+				}
+			}
+			else
+			{
+				//if (HasSpell((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), shieldSpell))
+				if (DoesPlayerHaveEffect(shieldEffect))
+				{
+					g_task->AddTask(new taskRemoveSpell(shieldSpell));
 				}
 			}
 
 			// scale runes
-			LOG("before scaling");
+			//LOG("before scaling");
 			if (strangeRunesModIndex != 9999)
 			{
-				LOG("in scaling");
+				//LOG("in scaling");
 
 				BSFixedString runeNodeName("RotNode");
 				BSFixedString subRuneNodeName("Rune");
@@ -364,7 +454,7 @@ namespace RealVirtualMagic
 				BSFixedString rightHandNodeName("NPC R Hand [RHnd]");
 
 				float newScale = 0.5f + newFocus;
-				LOG("new scale: %f", newScale);
+				//LOG("new scale: %g", newScale);
 
 				NiNode* rootNodeTP = (*g_thePlayer)->GetNiRootNode(0);
 
@@ -374,35 +464,35 @@ namespace RealVirtualMagic
 
 				if (mostInterestingRoot)
 				{
-					LOG("In mostInterestingRoot");
+					//LOG("In mostInterestingRoot");
 					NiAVObject* lefthand_node = mostInterestingRoot->GetObjectByName(&leftHandNodeName.data);
 					NiAVObject* righthand_node = mostInterestingRoot->GetObjectByName(&rightHandNodeName.data);
 					if (lefthand_node != nullptr)
 					{
-						LOG("In left hand");
+						//LOG("In left hand");
 						NiAVObject* leftRuneNode = lefthand_node->GetObjectByName(&runeNodeName.data);
 						if (leftRuneNode != nullptr)
 						{
-							LOG("in left RotNode");
+							//LOG("in left RotNode");
 							NiAVObject* leftRuneNodeSubRune = leftRuneNode->GetObjectByName(&subRuneNodeName.data);
 							if (leftRuneNodeSubRune != nullptr)
 							{
-								LOG("Scaling left rune");
+								LOG("Scaling left rune %g", newScale);
 								leftRuneNodeSubRune->m_localTransform.scale = newScale;
 							}
 						}
 					}
 					if (righthand_node != nullptr)
 					{
-						LOG("In right hand");
+						//LOG("In right hand");
 						NiAVObject* rightRuneNode = righthand_node->GetObjectByName(&runeNodeName.data);
 						if (rightRuneNode != nullptr)
 						{
-							LOG("in right RotNode");
+							//LOG("in right RotNode");
 							NiAVObject* rightRuneNodeSubRune = rightRuneNode->GetObjectByName(&subRuneNodeName.data);
 							if (rightRuneNodeSubRune != nullptr)
 							{
-								LOG("Scaling right rune");
+								LOG("Scaling right rune %g", newScale);
 								rightRuneNodeSubRune->m_localTransform.scale = newScale;
 							}
 						}
@@ -410,13 +500,11 @@ namespace RealVirtualMagic
 				}
 			}
 
-
 			// wait for a bit to make sure the new settings are applied before logging
 			// Sleep(50);
 
-			LOG("new destruction: %f", GetDestruction());
-			LOG("new magicka rate: %f", GetMagickaRate());
-
+			LOG("new destruction: %g", GetDestruction());
+			LOG("new magicka rate: %g", GetMagickaRate());
 		}
 	}
 }

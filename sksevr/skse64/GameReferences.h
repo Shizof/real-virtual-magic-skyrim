@@ -335,9 +335,9 @@ public:
 	virtual void Unk_A3(void);
 	virtual void Unk_A4(void);
 	virtual void Unk_A5(void);
-	virtual void Unk_A6(void);
-	virtual void Unk_A7(void);
 	virtual void DrawSheatheWeapon(bool draw);
+	virtual void Unk_A7(void);
+	virtual void Unk_A8(void);
 	virtual void Unk_A9(void);
 	virtual void Unk_AA(void);
 	virtual void Unk_AB(void);
@@ -362,6 +362,8 @@ public:
 	virtual void Unk_BE(void);
 	virtual void Unk_BF(void);
 	virtual void Unk_C0(void);
+	virtual void Unk_C0_1(void);
+	virtual void Unk_C0_2(void);
 	virtual void Unk_C1(void);
 	virtual void Unk_C2(void);
 	virtual void Unk_C3(void);
@@ -416,41 +418,69 @@ public:
 	virtual void Unk_F4(void);
 	virtual void Unk_F5(void);
 	virtual void Unk_F6(void);
-	virtual void Unk_F7(void);
-	virtual void Unk_F8(void);
 	virtual void AdvanceSkill(UInt32 skillId, float points, UInt32 unk1, UInt32 unk2);
-	virtual void Unk_FA(void);
-	virtual void Unk_FB(void);
+	virtual void Unk_F8(void);
+	virtual void Unk_F9(void);
 	virtual void VisitPerks(void); // BGSPerk::FindPerkInRanksVisitor
-	virtual void AddPerk(BGSPerk * perk, UInt32 unk1);
-	virtual void RemovePerk(BGSPerk * perk);
+	virtual void AddPerk(BGSPerk* perk, UInt32 unk1);
+	virtual void RemovePerk(BGSPerk* perk);
+
+	enum ACTOR_VALUE_MODIFIER
+	{
+		kPermanent = 0,
+		kTemporary = 1,
+		kDamage = 2,
+
+		kTotal = 3
+	};
+
+	struct Modifiers
+	{
+	public:
+		// members
+		float modifiers[ACTOR_VALUE_MODIFIER::kTotal];  // 0
+	};
+	STATIC_ASSERT(sizeof(Modifiers) == 0xC);
+
+	struct SlotTypes
+	{
+		enum
+		{
+			kLeftHand = 0,
+			kRightHand,
+			kUnknown,
+			kPowerOrShout,
+
+			kTotal
+		};
+	};
 
 	// 0C
 	class SpellArray
 	{
 	public:
-		SpellItem * Get(UInt32 idx)
+		SpellItem* Get(UInt32 idx)
 		{
-			if(idx >= spellCount) return NULL;
+			if (idx >= spellCount) return NULL;
 
-			if(allocatedCount & kLocalAlloc)
+			if (allocatedCount & kLocalAlloc)
 				return (idx == 0) ? singleSpell : NULL;
 			else
 				return spells ? spells[idx] : NULL;
 		}
 
-		UInt32	Length(void)	{ return spellCount; }
+		UInt32	Length(void) { return spellCount; }
 
 	private:
 		enum
-	{
+		{
 			kLocalAlloc = 0x80000000,
 		};
 
 		UInt32		allocatedCount;		// 00 - upper bit is set when single-element optimization is used
 		union {
-			SpellItem	** spells;		// 08
-			SpellItem	* singleSpell;	// 08 - used when kLocalAlloc is set
+			SpellItem** spells;		// 08
+			SpellItem* singleSpell;	// 08 - used when kLocalAlloc is set
 		};
 		UInt32		spellCount;		// 10
 	};
@@ -495,6 +525,43 @@ public:
 		kFlag_kUnderwater = 1 << 31
 	};
 
+	enum BOOL_FLAGS
+	{
+		kNone = 0,
+		kScenePackage = 1 << 0,
+		kIsAMount = 1 << 1,
+		kMountPointClear = 1 << 2,
+		kGettingOnOffMount = 1 << 3,
+		kInRandomScene = 1 << 4,
+		kNoBleedoutRecovery = 1 << 5,
+		kInBleedoutAnimation = 1 << 6,
+		kCanDoFavor = 1 << 7,
+		kShouldAnimGraphUpdate = 1 << 8,
+		kCanSpeakToEssentialDown = 1 << 9,
+		kBribedByPlayer = 1 << 10,
+		kAngryWithPlayer = 1 << 11,
+		kIsTrespassing = 1 << 12,
+		kCanSpeak = 1 << 13,
+		kIsInKillMove = 1 << 14,
+		kAttackOnSight = 1 << 15,
+		kIsCommandedActor = 1 << 16,
+		kForceOneAnimgraphUpdate = 1 << 17,
+		kEssential = 1 << 18,
+		kProtected = 1 << 19,
+		kAttackingDisabled = 1 << 20,
+		kCastingDisabled = 1 << 21,
+		kSceneHeadTrackRotation = 1 << 22,
+		kForceIncMinBoneUpdate = 1 << 23,
+		kCrimeSearch = 1 << 24,
+		kMovingIntoLoadedArea = 1 << 25,
+		kDoNotShowOnStealthMeter = 1 << 26,
+		kMovementBlocked = 1 << 27,
+		kAllowInstantFurniturePopInPlayerCell = 1 << 28,
+		kForceAnimGraphUpdate = 1 << 29,
+		kCheckAddEffectDualCast = 1 << 30,
+		kUnderwater = (UInt32)1 << 31
+	};
+
 	MagicTarget		magicTarget;					// 098
 	ActorValueOwner	actorValueOwner;				// 0B0
 	ActorState		actorState;						// 0B8
@@ -505,9 +572,9 @@ public:
 	float	unk0E4;									// 0E4
 	UInt32	unk0E8;									// 0E8
 	UInt32	pad0EC;									// 0EC
-	ActorProcessManager	* processManager;			// 0F0 
+	ActorProcessManager* processManager;			// 0F0 
 	UInt32	unk0F8;									// 0F8
-	UInt32	unk0FC;									// 0FC
+	UInt32  currentCombatTarget;					// 0FC
 	UInt32	unk100;									// 100
 	UInt32	unk104;									// 104
 	float	unk108;									// 108	- init'd to -1
@@ -522,8 +589,8 @@ public:
 	UInt32	unk12C;									// 12C
 	UInt64	unk130;									// 130
 	UInt64	unk138;									// 138
-	void*	unk140;									// 140 ActorMover*
-	void*	unk148;									// 148 MovementControllerNPC*
+	void* unk140;									// 140 ActorMover*
+	void* unk148;									// 148 MovementControllerNPC*
 	UInt64	unk150;									// 150
 	UInt64	unk158;									// 158
 	UInt64	unk160;									// 160
@@ -535,18 +602,15 @@ public:
 	UInt32	unk17C;									// 17C - init'd to 7FFFFFFF
 	UInt64	unk180;									// 180
 	SpellArray	addedSpells;						// 188
-	void*	unk1A0;									// 1A0	ActorMagicCaster*
-	void*	unk1A8;									// 1A8	ActorMagicCaster*
-	UInt64	unk1B0;									// 1B0
-	void*	unk1B8;									// 1B8	ActorMagicCaster*
+	void* magicCasters[SlotTypes::kTotal];									// 1A0	
 	SpellItem* leftHandSpell;						// 1C0
 	SpellItem* rightHandSpell;						// 1C8
 	UInt64	unk1D0;									// 1D0
 	UInt64	unk1D8;									// 1D8
-	TESForm	* equippedShout;						// 1E0
+	TESForm* equippedShout;						// 1E0
 	UInt32	unk1E8;									// 1E8
 	UInt32	pad1EC;									// 1EC
-	TESRace*	race;								// 1F0
+	TESRace* race;								// 1F0
 	float	unk1F8;									// 1F8 - init'd to -1
 	UInt32	flags2;									// 1FC
 
@@ -557,17 +621,12 @@ public:
 	UInt64	unk220;									// 220
 
 													// C
-	struct Data228
-	{
-		UInt32	unk0;
-		UInt32	unk4;
-		UInt32	unk8;
-	};
 
-	Data228	unk228;
-	Data228	unk234;
-	Data228	unk240;
-	Data228 unk24C;
+
+	Modifiers	healthModifiers;                    // 228
+	Modifiers	magickaModifiers;                   // 234
+	Modifiers	staminaModifiers;                   // 240
+	Modifiers	voicePointsModifiers;               // 24C
 	float	unk258;									// 258 - init'd to -1
 	UInt32	unk25C;									// 25C
 	UInt64	unk260;									// 260
@@ -585,32 +644,36 @@ public:
 
 	MEMBER_FN_PREFIX(Actor);
 	DEFINE_MEMBER_FN(QueueNiNodeUpdate, void, 0x0069C710, bool updateWeight);
-	DEFINE_MEMBER_FN(HasPerk, bool, 0x006025A0, BGSPerk * perk);
+	DEFINE_MEMBER_FN(HasPerk, bool, 0x006025A0, BGSPerk* perk);
 	DEFINE_MEMBER_FN(GetLevel, UInt16, 0x005DE910);
 	DEFINE_MEMBER_FN(SetRace, void, 0x00610000, TESRace*, bool isPlayer);
-	DEFINE_MEMBER_FN(UpdateWeaponAbility, void, 0x0063A2A0, TESForm*, BaseExtraList * extraData, bool bLeftHand);
-	DEFINE_MEMBER_FN(UpdateArmorAbility, void, 0x0063A230, TESForm*, BaseExtraList * extraData);
-	DEFINE_MEMBER_FN(IsHostileToActor, bool, 0x005F0560, Actor * actor);
+	DEFINE_MEMBER_FN(UpdateWeaponAbility, void, 0x0063A2A0, TESForm*, BaseExtraList* extraData, bool bLeftHand);
+	DEFINE_MEMBER_FN(UpdateArmorAbility, void, 0x0063A230, TESForm*, BaseExtraList* extraData);
+	DEFINE_MEMBER_FN(IsHostileToActor, bool, 0x005F0560, Actor* actor);
 	DEFINE_MEMBER_FN(ResetAI, void, 0x005E3990, UInt32 unk1, UInt32 unk2);
+	DEFINE_MEMBER_FN(GetMount, bool, 0x00637A90, NiPointer<Actor>& outMount);
+	DEFINE_MEMBER_FN(GetMountedBy, bool, 0x00637BA0, NiPointer<Actor>& outRider);
+	DEFINE_MEMBER_FN(GetActorValuePercentage, float, 0x005DEB30, unsigned int actorValueId);
 
-	TESForm * GetEquippedObject(bool abLeftHand);
+	TESForm* GetEquippedObject(bool abLeftHand);
 	void UpdateSkinColor();
 	void UpdateHairColor();
 
 	class FactionVisitor
 	{
 	public:
-		virtual bool Accept(TESFaction * faction, SInt8 rank) = 0;
+		virtual bool Accept(TESFaction* faction, SInt8 rank) = 0;
 	};
 
 	// Can contain duplicate entries with different rankings
-	bool VisitFactions(FactionVisitor & visitor);
+	bool VisitFactions(FactionVisitor& visitor);
 };
 
 STATIC_ASSERT(offsetof(Actor, magicTarget) == 0x98);
 STATIC_ASSERT(offsetof(Actor, actorValueOwner) == 0xB0);
 STATIC_ASSERT(offsetof(Actor, actorState) == 0xB8);
 STATIC_ASSERT(offsetof(Actor, unk0D8) == 0xD8);
+STATIC_ASSERT(offsetof(Actor, unk180) == 0x180);
 STATIC_ASSERT(offsetof(Actor, addedSpells) == 0x188);
 STATIC_ASSERT(sizeof(Actor) == 0x2B0);
 

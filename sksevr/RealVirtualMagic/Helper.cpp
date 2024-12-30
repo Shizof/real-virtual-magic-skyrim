@@ -5,12 +5,199 @@
 
 namespace RealVirtualMagic
 {
+	RelocAddr <_HasSpell> HasSpell(0x0984420);
+	RelocAddr <_AddSpell> AddSpell(0x0984330);
+	RelocAddr <_RemoveSpell> RemoveSpell(0x09841A0);
+	RelocAddr<_DoCombatSpellApply> DoCombatSpellApply(0x00992240);
 
 	RelocAddr<_DamageActorValue> DamageActorValue(0x09848B0);
 	RelocAddr<_RestoreActorValue> RestoreActorValue(0x0986480);
 	UInt32 strangeRunesModIndex = 9999;
 	std::string strangeRunesName = "StrangeRunes.esp";
 	RelocPtr<AIProcessManager*> g_AIProcessManager(0x1F831B0);
+
+
+	std::string pluginName = "RealVirtualMagic.esp";
+
+	UInt32 magickaSpellFormId = 0x0814;
+	UInt32 magickaRateSpellFormId = 0x0815;
+	UInt32 healthSpellFormId = 0x0816;
+	UInt32 healRateSpellFormId = 0x0817;
+	UInt32 shieldSpellFormId = 0x0818;
+
+	SpellItem* magickaSpell;
+	SpellItem* magickaRateSpell;
+	SpellItem* healthSpell;
+	SpellItem* healRateSpell;
+	SpellItem* shieldSpell;
+
+
+	UInt32 alterationPowerFormId = 0x0819;
+	UInt32 conjurationPowerFormId = 0x081A;
+	UInt32 destructionPowerFormId = 0x081B;
+	UInt32 illusionPowerFormId = 0x081C;
+	UInt32 restorationPowerFormId = 0x081D;
+
+	UInt32 shoutRecoveryFormId = 0x0D83;
+
+
+	SpellItem* alterationPowerSpell;
+	SpellItem* conjurationPowerSpell;
+	SpellItem* destructionPowerSpell;
+	SpellItem* illusionPowerSpell;
+	SpellItem* restorationPowerSpell;
+
+	SpellItem* shoutRecoverySpell;
+
+
+	UInt32 magickaDecEffectFormId = 0x0802;
+	UInt32 magickaIncEffectFormId = 0x0803;
+	UInt32 magickaRateDecEffectFormId = 0x0801;
+	UInt32 magickaRateIncEffectFormId = 0x0804;
+	UInt32 HealthDecEffectFormId = 0x0805;
+	UInt32 HealthIncEffectFormId = 0x0806;
+	UInt32 HealRateDecEffectFormId = 0x0807;
+	UInt32 HealRateIncEffectFormId = 0x0808;
+	UInt32 shieldEffectFormId = 0x0809;
+
+	EffectSetting* magickaDecEffect;
+	EffectSetting* magickaIncEffect;
+	EffectSetting* magickaRateDecEffect;
+	EffectSetting* magickaRateIncEffect;
+	EffectSetting* HealthDecEffect;
+	EffectSetting* HealthIncEffect;
+	EffectSetting* HealRateDecEffect;
+	EffectSetting* HealRateIncEffect;
+	EffectSetting* shieldEffect;
+
+
+	UInt32 alterationPowerIncEffectFormId = 0x0080A;
+	UInt32 alterationPowerDecEffectFormId = 0x0080B;
+	UInt32 conjurationPowerIncEffectFormId = 0x0080C;
+	UInt32 conjurationPowerDecEffectFormId = 0x0080D;
+	UInt32 destructionPowerIncEffectFormId = 0x0080E;
+	UInt32 destructionPowerDecEffectFormId = 0x0080F;
+	UInt32 illusionPowerIncEffectFormId = 0x00810;
+	UInt32 illusionPowerDecEffectFormId = 0x00811;
+	UInt32 restorationPowerIncEffectFormId = 0x00812;
+	UInt32 restorationPowerDecEffectFormId = 0x00813;
+
+	UInt32 shoutRecoveryIncEffectFormId = 0x00D81;
+	UInt32 shoutRecoveryDecEffectFormId = 0x00D82;
+
+	EffectSetting* alterationPowerIncEffect;
+	EffectSetting* alterationPowerDecEffect;
+	EffectSetting* conjurationPowerIncEffect;
+	EffectSetting* conjurationPowerDecEffect;
+	EffectSetting* destructionPowerIncEffect;
+	EffectSetting* destructionPowerDecEffect;
+	EffectSetting* illusionPowerIncEffect;
+	EffectSetting* illusionPowerDecEffect;
+	EffectSetting* restorationPowerIncEffect;
+	EffectSetting* restorationPowerDecEffect;
+
+	EffectSetting* shoutRecoveryIncEffect;
+	EffectSetting* shoutRecoveryDecEffect;
+
+	void FillSpellWithFormId(UInt32 baseFormId, SpellItem** targetSpell)
+	{
+		const UInt32 fullFormId = GetFullFormIdFromEspAndFormId(pluginName.c_str(), GetBaseFormID(baseFormId));
+		if (fullFormId > 0)
+		{
+			TESForm* form = LookupFormByID(fullFormId);
+			if (form)
+			{
+				*targetSpell = DYNAMIC_CAST(form, TESForm, SpellItem);
+				if (targetSpell)
+					LOG_ERR("Spell found. formid: %x", fullFormId);
+				else
+					LOG_ERR("Spell null. formid: %x", fullFormId);
+
+			}
+			else
+			{
+				LOG_ERR("Spell not found. formid: %x", fullFormId);
+			}
+		}
+	}
+
+	void FillMagicEffectWithFormId(UInt32 baseFormId, EffectSetting** targetEffect)
+	{
+		const UInt32 fullFormId = GetFullFormIdFromEspAndFormId(pluginName.c_str(), GetBaseFormID(baseFormId));
+		if (fullFormId > 0)
+		{
+			TESForm* form = LookupFormByID(fullFormId);
+			if (form)
+			{
+				*targetEffect = DYNAMIC_CAST(form, TESForm, EffectSetting);
+			}
+			else
+			{
+				LOG_ERR("Magicka Spell not found. formid: %x", fullFormId);
+			}
+		}
+	}
+
+	void LoadValues()
+	{
+		DataHandler* dataHandler = DataHandler::GetSingleton();
+
+		if (dataHandler)
+		{
+			const ModInfo* strangeRunesModInfo = dataHandler->LookupLoadedModByName(strangeRunesName.c_str());
+
+			if (strangeRunesModInfo)
+			{
+				if (IsValidModIndex(strangeRunesModInfo->modIndex))
+				{
+					strangeRunesModIndex = strangeRunesModInfo->modIndex;
+					LOG_ERR("Strange Runes esp found. Mod Index: %x", strangeRunesModIndex);
+				}
+				else
+				{
+					LOG_ERR("Strange runes mod not found!");
+				}
+			}
+
+			FillSpellWithFormId(magickaSpellFormId, &magickaSpell);
+			FillSpellWithFormId(magickaRateSpellFormId, &magickaRateSpell);
+			FillSpellWithFormId(healthSpellFormId, &healthSpell);
+			FillSpellWithFormId(healRateSpellFormId, &healRateSpell);
+
+			FillSpellWithFormId(shieldSpellFormId, &shieldSpell);
+
+			FillSpellWithFormId(alterationPowerFormId, &alterationPowerSpell);
+			FillSpellWithFormId(conjurationPowerFormId, &conjurationPowerSpell);
+			FillSpellWithFormId(destructionPowerFormId, &destructionPowerSpell);
+			FillSpellWithFormId(illusionPowerFormId, &illusionPowerSpell);
+			FillSpellWithFormId(restorationPowerFormId, &restorationPowerSpell);
+			FillSpellWithFormId(shoutRecoveryFormId, &shoutRecoverySpell);
+
+			FillMagicEffectWithFormId(magickaDecEffectFormId, &magickaDecEffect);
+			FillMagicEffectWithFormId(magickaIncEffectFormId,& magickaIncEffect);
+			FillMagicEffectWithFormId(magickaRateDecEffectFormId, &magickaRateDecEffect);
+			FillMagicEffectWithFormId(magickaRateIncEffectFormId, &magickaRateIncEffect);
+			FillMagicEffectWithFormId(HealthDecEffectFormId, &HealthDecEffect);
+			FillMagicEffectWithFormId(HealthIncEffectFormId, &HealthIncEffect);
+			FillMagicEffectWithFormId(HealRateDecEffectFormId, &HealRateDecEffect);
+			FillMagicEffectWithFormId(HealRateIncEffectFormId, &HealRateIncEffect);
+			FillMagicEffectWithFormId(shieldEffectFormId, &shieldEffect);
+
+			FillMagicEffectWithFormId(alterationPowerIncEffectFormId, &alterationPowerIncEffect);
+			FillMagicEffectWithFormId(alterationPowerDecEffectFormId, &alterationPowerDecEffect);
+			FillMagicEffectWithFormId(conjurationPowerIncEffectFormId, &conjurationPowerIncEffect);
+			FillMagicEffectWithFormId(conjurationPowerDecEffectFormId, &conjurationPowerDecEffect);
+			FillMagicEffectWithFormId(destructionPowerIncEffectFormId, &destructionPowerIncEffect);
+			FillMagicEffectWithFormId(destructionPowerDecEffectFormId, &destructionPowerDecEffect);
+			FillMagicEffectWithFormId(illusionPowerIncEffectFormId, &illusionPowerIncEffect);
+			FillMagicEffectWithFormId(illusionPowerDecEffectFormId, &illusionPowerDecEffect);
+			FillMagicEffectWithFormId(restorationPowerIncEffectFormId, &restorationPowerIncEffect);
+			FillMagicEffectWithFormId(restorationPowerDecEffectFormId, &restorationPowerDecEffect);
+			FillMagicEffectWithFormId(shoutRecoveryIncEffectFormId, &shoutRecoveryIncEffect);
+			FillMagicEffectWithFormId(shoutRecoveryDecEffectFormId, &shoutRecoveryDecEffect);
+		}
+	}
+
 
 	bool ActorInCombat(Actor* actor)
 	{
@@ -24,9 +211,32 @@ namespace RealVirtualMagic
 		return (*g_thePlayer)->actorValueOwner.GetCurrent(25);
 	}
 
+	float GetBaseMaxMagicka()
+	{
+		float totalMod = 0.0f;
+		float permanent = (*g_thePlayer)->magickaModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kPermanent];
+		totalMod += (*g_thePlayer)->magickaModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kTemporary];
+		
+		const float currentMagicka = GetCurrentMagicka();
+
+		const float actorValuePercentage = CALL_MEMBER_FN((*g_thePlayer), GetActorValuePercentage)(25);
+		
+		const float maxMagicka = ceilf(currentMagicka / actorValuePercentage);
+		//LOG_ERR("BaseMaxMagicka (%g/%g): %g = %g + %g - %g", currentMagicka, actorValuePercentage, maxMagicka + totalMod - permanent, maxMagicka, totalMod, permanent);
+		return (maxMagicka + totalMod - floor(permanent));
+	}
+
 	float GetMaxMagicka()
 	{
-		return (*g_thePlayer)->actorValueOwner.GetMaximum(25);
+		float totalMod = 0.0f;
+		//totalMod += (*g_thePlayer)->magickaModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kPermanent]; //already included in max magicka
+		totalMod += (*g_thePlayer)->magickaModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kTemporary];
+		//LOG_ERR("Magicka Modifiers: Permanent: %g - Temp: %g - Damage: %g", (*g_thePlayer)->magickaModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kPermanent], (*g_thePlayer)->magickaModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kTemporary], (*g_thePlayer)->magickaModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kDamage]);
+		const float currentMagicka = GetCurrentMagicka();
+		const float maxMagicka = ceilf(currentMagicka / CALL_MEMBER_FN((*g_thePlayer), GetActorValuePercentage)(25));
+		//LOG_ERR("Current Magicka: %g MaxMagicka: %g - CalculatedMax: %g", currentMagicka, maxMagicka, maxMagicka + totalMod);
+
+		return (maxMagicka + totalMod);
 	}
 
 	void SetMaxMagicka(float new_current_magicka)
@@ -70,7 +280,16 @@ namespace RealVirtualMagic
 
 	float GetMaxHealth()
 	{
-		return (*g_thePlayer)->actorValueOwner.GetMaximum(24);
+		float totalMod = 0.0f;
+		//totalMod += (*g_thePlayer)->healthModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kPermanent]; //already included in max health
+		totalMod += (*g_thePlayer)->healthModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kTemporary];
+
+		//LOG_ERR("Health Modifiers: Permanent: %g - Temp: %g - Damage: %g", (*g_thePlayer)->healthModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kPermanent], (*g_thePlayer)->healthModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kTemporary], (*g_thePlayer)->healthModifiers.modifiers[Actor::ACTOR_VALUE_MODIFIER::kDamage]);
+		const float currentHealth = GetCurrentHealth();
+		const float maxHealth = ceilf(currentHealth / CALL_MEMBER_FN((*g_thePlayer), GetActorValuePercentage)(24));
+		//LOG_ERR("Current Health: %g MaxHealth: %g - CalculatedMax: %g", currentHealth, maxHealth, maxHealth + totalMod);
+
+		return (maxHealth + totalMod);
 	}
 
 	void SetMaxHealth(float new_current_magicka)
@@ -165,56 +384,194 @@ namespace RealVirtualMagic
 		*/
 	}
 
+
+	taskRemoveAndAddSpell::taskRemoveAndAddSpell(SpellItem* akSpell)
+	{
+		m_akSpell = akSpell;
+	}
+
+	void taskRemoveAndAddSpell::Run()
+	{
+		RemoveSpell((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), m_akSpell);
+		AddSpell((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), m_akSpell, false);
+	}
+
+	void taskRemoveAndAddSpell::Dispose()
+	{
+		delete this;
+	}
+
+	taskAddSpell::taskAddSpell(SpellItem* akSpell)
+	{
+		m_akSpell = akSpell;
+	}
+
+	void taskAddSpell::Run()
+	{
+		AddSpell((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), m_akSpell, false);
+	}
+
+	void taskAddSpell::Dispose()
+	{
+		delete this;
+	}
+
+	taskRemoveSpell::taskRemoveSpell(SpellItem* akSpell)
+	{
+		m_akSpell = akSpell;
+	}
+
+	void taskRemoveSpell::Run()
+	{
+		RemoveSpell((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), m_akSpell);
+	}
+
+	void taskRemoveSpell::Dispose()
+	{
+		delete this;
+	}
+
+
+
+	taskDoCombatSpellApply::taskDoCombatSpellApply(SpellItem* spell, Actor* actor, UInt32 targetRefHandle)
+	{
+		m_spell = spell;
+		m_targetRefHandle = targetRefHandle;
+		m_actor = actor;
+	}
+
+	void taskDoCombatSpellApply::Run()
+	{
+		NiPointer<TESObjectREFR> targetRefr;
+		LookupREFRByHandle(m_targetRefHandle, targetRefr);
+
+		if (targetRefr && targetRefr->formID != 0)
+		{
+			DoCombatSpellApply((*g_skyrimVM)->GetClassRegistry(), 0, m_actor, m_spell, targetRefr);
+		}
+	}
+
+	void taskDoCombatSpellApply::Dispose()
+	{
+		delete this;
+	}
 	
 
-	void ChangeCurrentDestruction(float amount)
+	bool DoesPlayerHaveEffect(EffectSetting* effect)
 	{
-		LOG("Changing Magicka by %g", amount);
-		//(*g_thePlayer)->actorValueOwner.RestoreActorValue((amount < 0) ? 2 : 4, 26, abs(amount));
+		bool foundEffect = false;
+		MagicTarget* magicTarget = &((*g_thePlayer)->magicTarget);
+		magicTarget->VisitActiveEffects([&foundEffect, &effect](ActiveEffect* activeEffect) -> BSContainer::ForEachResult {
+			EffectSetting* setting = (activeEffect && activeEffect->effect) ? activeEffect->effect->mgef : nullptr;
+			if (setting != nullptr && setting == effect)
+			{
+				foundEffect = true;
+				return BSContainer::ForEachResult::kAbort;
+			}
 
-		//std::thread t3(ChangeCurrentMagickaFunc, amount);
-		//t3.detach();
-		ChangeCurrentDestructionFunc(amount);
+			return BSContainer::ForEachResult::kContinue;
+			});
+
+		if (foundEffect)
+			return true;
+		else
+			return false;
 	}
 
-	void ChangeCurrentDestructionFunc(float amount)
+	bool DoesPlayerHaveEffects(EffectSetting* effect1, EffectSetting* effect2)
 	{
-		if (amount < 0)
-		{
-			DamageActorValue((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), "Magicka", abs(amount));
-			Sleep(1500);
-			const float currentMagicka = GetCurrentMagicka();
-			if (currentMagicka < 0)
+		bool foundEffect = false;
+		MagicTarget* magicTarget = &((*g_thePlayer)->magicTarget);
+		magicTarget->VisitActiveEffects([&foundEffect, &effect1, &effect2](ActiveEffect* activeEffect) -> BSContainer::ForEachResult {
+			EffectSetting* setting = (activeEffect && activeEffect->effect) ? activeEffect->effect->mgef : nullptr;
+			if (setting != nullptr && (setting == effect1 || setting == effect2))
 			{
-				RestoreActorValue((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), "Magicka", 10 - currentMagicka);
+				foundEffect = true;
+				return BSContainer::ForEachResult::kAbort;
+			}
+
+			return BSContainer::ForEachResult::kContinue;
+			});
+
+		if (foundEffect)
+			return true;
+		else
+			return false;
+	}
+
+	bool CheckIfPlayerHaveEffectsAndGetCurrentMagnitude(EffectSetting* decEffect, EffectSetting* incEffect, float &currentMag)
+	{
+		bool foundEffect = false;
+
+		MagicTarget* magicTarget = &((*g_thePlayer)->magicTarget);
+		magicTarget->VisitActiveEffects([&foundEffect, &decEffect, &incEffect, &currentMag](ActiveEffect* activeEffect) -> BSContainer::ForEachResult {
+			EffectSetting* setting = (activeEffect && activeEffect->effect) ? activeEffect->effect->mgef : nullptr;
+			if (setting != nullptr && (setting == decEffect || setting == incEffect))
+			{
+				currentMag = ((setting == decEffect) ? -1 : 1) * activeEffect->effect->magnitude;
+				//LOG("Player already has this effect: %s. Current magnitude is %g", activeEffect->effect->mgef->fullName.name.data, currentMag);
+				
+				foundEffect = true;
+				return BSContainer::ForEachResult::kAbort;
+			}
+
+			return BSContainer::ForEachResult::kContinue;
+			});
+
+		if (foundEffect)
+			return true;
+		else
+			return false;
+	}
+
+	void ChangeSpellEffects(SpellItem * spell, EffectSetting* incEffect, EffectSetting* decEffect, float newMagnitude)
+	{
+		if (spell && spell->effectItemList.count > 0)
+		{
+			MagicItem::EffectItem* effectItem = nullptr;;
+			if (spell->effectItemList.GetNthItem(0, effectItem))
+			{
+				if (effectItem)
+				{
+					if (newMagnitude > 0)
+						effectItem->mgef = incEffect;
+					else
+						effectItem->mgef = decEffect;
+
+					effectItem->magnitude = abs(newMagnitude);
+				}
 			}
 		}
-		else
-		{
-			//Sleep(500);
-			RestoreActorValue((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), "Magicka", abs(amount));
-		}
 	}
 
-	void LoadGlobalValues()
+
+
+	void AddOrRemoveSpells(SpellItem* spell, bool addOnly)
 	{
-		DataHandler* dataHandler = DataHandler::GetSingleton();
-
-		if (dataHandler)
+		if (!addOnly)
 		{
-			const ModInfo* strangeRunesModInfo = dataHandler->LookupLoadedModByName(strangeRunesName.c_str());
+			g_task->AddTask(new taskRemoveSpell(spell));
+			Sleep(500);
+			g_task->AddTask(new taskAddSpell(spell));
+		}
+		else
+			g_task->AddTask(new taskAddSpell(spell));
+	}
 
-			if (strangeRunesModInfo)
+	void UpdatePlayerSpellEffects(SpellItem* spell, EffectSetting* incEffect, EffectSetting* decEffect, float newMagnitude, float minChangeAmount)
+	{
+		if (spell && decEffect && incEffect)
+		{
+			float curMagnitude = 0.0f;
+			const bool playerHaveEffects = CheckIfPlayerHaveEffectsAndGetCurrentMagnitude(decEffect, incEffect, curMagnitude);
+
+			//Only change if a significant change occurs or if the player doesn't have the spell.
+			if (!playerHaveEffects || (abs(newMagnitude - curMagnitude) >= minChangeAmount))
 			{
-				if (IsValidModIndex(strangeRunesModInfo->modIndex))
-				{
-					strangeRunesModIndex = strangeRunesModInfo->modIndex;
-					LOG_ERR("Strange Runes esp found. Mod Index: %x", strangeRunesModIndex);
-				}
-				else
-				{
-					LOG_ERR("Strange runes mod not found!");
-				}
+				ChangeSpellEffects(spell, incEffect, decEffect, newMagnitude);
+
+				std::thread t2(AddOrRemoveSpells, spell, !playerHaveEffects);
+				t2.detach();
 			}
 		}
 	}

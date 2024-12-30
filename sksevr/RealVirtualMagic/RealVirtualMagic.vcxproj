@@ -127,6 +127,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="rvminterface001.cpp" />
     <ClCompile Include="rvmpluginapi.cpp" />
+    <ClCompile Include="SkyrimVRESLAPI.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\common\common_vc14.vcxproj">
@@ -149,10 +150,15 @@
     <ClInclude Include="RealVirtualMagic.h" />
     <ClInclude Include="rvminterface001.h" />
     <ClInclude Include="rvmpluginapi.h" />
+    <ClInclude Include="SkyrimVRESLAPI.h" />
     <ClInclude Include="Utility.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="RealVirtualMagic.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="lsl.lib" />
+    <Library Include="openvr_api.lib" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

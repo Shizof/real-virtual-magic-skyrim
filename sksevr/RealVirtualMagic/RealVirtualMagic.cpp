@@ -29,24 +29,31 @@ namespace RealVirtualMagic
 	int creationCounter = 0;
 	int creationCounterMax = 9999999; // LSL is re-initialized every 10s if it hadnt found a stream after 5s. set this to a lower number to give up at some point
 
-
 	void InitializeIXRStream()
 	{
 		IXRIsInitializing = true;
 		LOG_ERR("Resolving LSL streams");
-		std::vector<stream_info> results = resolve_stream("type", "IXR-metric", 1, 5.0); // this line determines the LSL stream that we are searching. it aborts after 5s
+		std::vector<stream_info> results = resolve_stream("type", "IXR-metric", 1, 5.0);
 		if (results.empty()) {
 			LOG_ERR("No LSL streams found!");
 		}
-		else {
+		else 
+		{
+			// Log found stream
 			std::string lslstring = results[0].as_xml();
-			LOG_ERR("Here is what was resolved: %s", lslstring.c_str());
+			LOG_ERR("Found stream: %s", lslstring.c_str());
 
-			LOG_ERR("Creating stream inlet");
-			IXRStream = new stream_inlet(results[0]);  // Create a new stream_inlet with the resolved stream_info
-
-			LOG_ERR("--------------- IXR Suite connected!!! ---------------");
-			IXRInitialized = true;
+			if (results[0].name() == "BrainPower" && results[0].source_id() == "ixrflow_transmit_power") 
+			{
+				LOG_ERR("Creating stream inlet for BrainPower stream");
+				IXRStream = new stream_inlet(results[0], 1, 1);
+				IXRStream->set_postprocessing(post_clocksync | post_monotonize);
+				LOG_ERR("--------------- IXR Suite connected!!! ---------------");
+				IXRInitialized = true;
+			}
+			else {
+				LOG_ERR("Found stream is not the BrainPower stream we're looking for");
+			}
 		}
 		IXRIsInitializing = false;
 	}
@@ -72,21 +79,18 @@ namespace RealVirtualMagic
 			
 			if (!IXRInitialized && !IXRIsInitializing)
 			{
-				std::thread t1(InitializeIXRStream);
-				t1.detach();
+				InitializeIXRStream();
 			}
 
 			if (!eventMarkersInitialized && !eventMarkersIsInitializing)
 			{
-				std::thread t2(CreateEventStream);
-				t2.detach();
+				CreateEventStream();
 			}
 		}
 
 		// wait for 10s to make sure there are no two initialization processes going on
 		Sleep(10000);
 	}
-
 
 	double GetFocusValue()
 	{
@@ -102,7 +106,6 @@ namespace RealVirtualMagic
 		// Pull the next sample from the IXRStream
 		double timestamp = IXRStream->pull_sample(sample,5.0); // this will block if no stream is available at the moment and continue as soon as it is
 		
-
 		if (sample.empty() || sample[0]==0.0){
 			delete IXRStream;
 			IXRStream = nullptr;
@@ -111,9 +114,15 @@ namespace RealVirtualMagic
 			return 0.0;
 		}
 
-		// Returning the first value in the sample
-		LOG("LSL-timestamp: %f, sample[0]: %f", timestamp, sample[0]);
-		return sample[0];
+		double value = sample[0];
+		//LOG_ERR("Received raw brain power value: %g", value);
+
+		if (value < 0.0 || value > 1.0) {
+			LOG_ERR("Warning: Brain power value outside expected range 0.0-1.0");
+		}
+
+		LOG("LSL-timestamp: %g, brain power: %g", timestamp, value);
+		return value;
 	}
 
 	void WriteEventMarker(const std::string& eventType)

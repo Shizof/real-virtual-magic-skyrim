@@ -1,39 +1,72 @@
 #pragma once
-#include "skse64\NiNodes.h"
-#include "skse64\NiTypes.h"
-#include "skse64/GameObjects.h"
-#include "skse64/NiExtraData.h"
-#include "skse64/GameRTTI.h"
-#include "skse64/InternalTasks.h"
-#include "skse64/PluginAPI.h"
-#include "skse64/PapyrusActor.h"
-#include "skse64/PapyrusGame.h"
-#include "skse64_common/SafeWrite.h"
-#include "skse64/GameExtraData.h"
-#include <skse64/PapyrusWornObject.h>
 
-#include "skse64/NiGeometry.h"
-#include <skse64/PapyrusConstructibleObject.h>
 
-#include "skse64/PapyrusPotion.h"
 #include "RealVirtualMagic.h"
-
-#include "MenuChecker.h"
-#include "Engine.h"
 
 #define NINODE_CHILDREN(ninode) ((NiTArray <NiAVObject *> *) ((char*)(&((ninode)->m_children))))
 
 namespace RealVirtualMagic
 {
+	extern SpellItem* magickaSpell;
+	extern SpellItem* magickaRateSpell;
+	extern SpellItem* healthSpell;
+	extern SpellItem* healRateSpell;
+	extern SpellItem* shieldSpell;
+
+	extern SpellItem* alterationPowerSpell;
+	extern SpellItem* conjurationPowerSpell;
+	extern SpellItem* destructionPowerSpell;
+	extern SpellItem* illusionPowerSpell;
+	extern SpellItem* restorationPowerSpell;
+	extern SpellItem* shoutRecoverySpell;
+
+	extern EffectSetting* magickaDecEffect;
+	extern EffectSetting* magickaIncEffect;
+	extern EffectSetting* magickaRateDecEffect;
+	extern EffectSetting* magickaRateIncEffect;
+	extern EffectSetting* HealthDecEffect;
+	extern EffectSetting* HealthIncEffect;
+	extern EffectSetting* HealRateDecEffect;
+	extern EffectSetting* HealRateIncEffect;
+	extern EffectSetting* shieldEffect;
+
+	extern EffectSetting* alterationPowerIncEffect;
+	extern EffectSetting* alterationPowerDecEffect;
+	extern EffectSetting* conjurationPowerIncEffect;
+	extern EffectSetting* conjurationPowerDecEffect;
+	extern EffectSetting* destructionPowerIncEffect;
+	extern EffectSetting* destructionPowerDecEffect;
+	extern EffectSetting* illusionPowerIncEffect;
+	extern EffectSetting* illusionPowerDecEffect;
+	extern EffectSetting* restorationPowerIncEffect;
+	extern EffectSetting* restorationPowerDecEffect;
+
+	extern EffectSetting* shoutRecoveryIncEffect;
+	extern EffectSetting* shoutRecoveryDecEffect;
+
 	typedef void(*_DamageActorValue)(VMClassRegistry* VMinternal, UInt32 stackId, Actor* thisActor, BSFixedString const& dmgValueName, float dmg);
 	extern RelocAddr<_DamageActorValue> DamageActorValue; 
 	typedef void(*_RestoreActorValue)(VMClassRegistry* VMinternal, UInt32 stackId, Actor* thisActor, BSFixedString const& dmgValueName, float amount);
 	extern RelocAddr<_RestoreActorValue> RestoreActorValue;
 	typedef bool(*_IsInCombatNative)(Actor* actor);
 
+
+	typedef bool(*_HasSpell)(VMClassRegistry* registry, UInt64 stackID, Actor* actor, TESForm* akSpell);
+	extern RelocAddr <_HasSpell> HasSpell;
+
+	typedef bool(*_AddSpell)(VMClassRegistry* registry, UInt64 stackID, Actor* actor, TESForm* akSpell, bool abVerbose);
+	extern RelocAddr <_AddSpell> AddSpell;
+
+	typedef bool(*_RemoveSpell)(VMClassRegistry* registry, UInt64 stackID, Actor* actor, TESForm* akSpell);
+	extern RelocAddr <_RemoveSpell> RemoveSpell;
+
+	typedef bool(*_DoCombatSpellApply)(VMClassRegistry* registry, UInt32 stackId, Actor* akActor, SpellItem* spell, TESObjectREFR* akTarget);
+	extern RelocAddr<_DoCombatSpellApply> DoCombatSpellApply;
+
 	bool ActorInCombat(Actor* actor);
 
 	float GetCurrentMagicka();
+	float GetBaseMaxMagicka();
 	float GetMaxMagicka();
 	void SetMaxMagicka(float amount);
 	void ChangeCurrentMagicka(float amount);
@@ -51,11 +84,16 @@ namespace RealVirtualMagic
 
 	float GetDestruction();
 	void SetAllMagickPower(float amount);
-	void ChangeCurrentDestruction(float amount);
-	void ChangeCurrentDestructionFunc(float amount);
+
 	void SetAllDamageResist(float amount);
 
-	void LoadGlobalValues();
+	bool DoesPlayerHaveEffect(EffectSetting* effect);
+	bool DoesPlayerHaveEffects(EffectSetting* effect1, EffectSetting* effect2);
+	void ChangeSpellEffects(SpellItem* spell, EffectSetting* incEffect, EffectSetting* decEffect, float newMagnitude);
+	bool CheckIfPlayerHaveEffectsAndGetCurrentMagnitude(EffectSetting* decEffect, EffectSetting* incEffect, float& currentMag);
+	void UpdatePlayerSpellEffects(SpellItem* spell, EffectSetting* incEffect, EffectSetting* decEffect, float newMagnitude, float minChangeAmount);
+
+	void LoadValues();
 
 	void logChildren(NiAVObject* bone, int depth, int maxDepth, const char* filter);
 
@@ -217,4 +255,47 @@ namespace RealVirtualMagic
 	STATIC_ASSERT(sizeof(AIProcessManager) == 0x1F0);
 
 	extern RelocPtr<AIProcessManager*> g_AIProcessManager;
+
+
+	class taskRemoveAndAddSpell : public TaskDelegate
+	{
+	public:
+		virtual void Run();
+		virtual void Dispose();
+
+		taskRemoveAndAddSpell(SpellItem* akSpell);
+		SpellItem* m_akSpell;
+	};
+
+	class taskAddSpell : public TaskDelegate
+	{
+	public:
+		virtual void Run();
+		virtual void Dispose();
+
+		taskAddSpell(SpellItem* akSpell);
+		SpellItem* m_akSpell;
+	};
+
+	class taskRemoveSpell : public TaskDelegate
+	{
+	public:
+		virtual void Run();
+		virtual void Dispose();
+
+		taskRemoveSpell(SpellItem* akSpell);
+		SpellItem* m_akSpell;
+	};
+
+	class taskDoCombatSpellApply : public TaskDelegate
+	{
+	public:
+		virtual void Run();
+		virtual void Dispose();
+
+		taskDoCombatSpellApply(SpellItem* spell, Actor* actor, UInt32 targetRefHandle);
+		UInt32 m_targetRefHandle;
+		SpellItem* m_spell;
+		Actor* m_actor;
+	};
 }

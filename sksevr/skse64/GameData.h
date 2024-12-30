@@ -153,7 +153,7 @@ struct ModInfo		// referred to by game as TESFile
 	}
 
 	bool IsActive() const { return modIndex != 0xFF; }
-	bool IsLight() const { return false; }
+	bool IsLight() const { return modIndex == 0xFE; }
 };
 
 STATIC_ASSERT(offsetof(ModInfo, formInfo) == 0x284);

@@ -10,6 +10,7 @@
     <ClCompile Include="Helper.cpp" />
     <ClCompile Include="rvminterface001.cpp" />
     <ClCompile Include="rvmpluginapi.cpp" />
+    <ClCompile Include="SkyrimVRESLAPI.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Utility.hpp" />
@@ -22,8 +23,13 @@
     <ClInclude Include="Helper.h" />
     <ClInclude Include="rvminterface001.h" />
     <ClInclude Include="rvmpluginapi.h" />
+    <ClInclude Include="SkyrimVRESLAPI.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="RealVirtualMagic.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="lsl.lib" />
+    <Library Include="openvr_api.lib" />
   </ItemGroup>
 </Project>

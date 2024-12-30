@@ -3,12 +3,12 @@
 #include <intrin.h>
 #include <string>
 
-#include "skse64/PluginAPI.h"	
 #include "Engine.h"
 #include "rvmpluginapi.h"
 
 static SKSEMessagingInterface		* g_messaging = NULL;
 static PluginHandle					g_pluginHandle = kPluginHandle_Invalid;
+SKSETaskInterface* g_task = NULL;
 static SKSEPapyrusInterface         * g_papyrus = NULL;
 static SKSEObjectInterface         * g_object = NULL;
 
@@ -21,6 +21,7 @@ void SetupReceptors()
 	MenuManager * menuManager = MenuManager::GetSingleton();
 	if (menuManager)
 		menuManager->MenuOpenCloseEventDispatcher()->AddEventSink(&RealVirtualMagic::menuEvent);
+		
 }
 
 
@@ -39,7 +40,7 @@ extern "C" {
 		// populate info structure
 		info->infoVersion = PluginInfo::kInfoVersion;
 		info->name = "RealVirtualMagic";
-		info->version = 00000100; 
+		info->version = 00005000; 
 
 		// store plugin handle so we can identify ourselves later
 		g_pluginHandle = skse->GetPluginHandle();
@@ -87,11 +88,25 @@ extern "C" {
 				// Register our own mod api listener
 				g_messaging->RegisterListener(g_pluginHandle, nullptr, RVMPluginApi::modMessageHandler);
 			}
+			else if (msg->type == SKSEMessagingInterface::kMessage_PostPostLoad)
+			{
+				RealVirtualMagic::skyrimVRESLInterface = SkyrimVRESLPluginAPI::GetSkyrimVRESLInterface001(g_pluginHandle, g_messaging);
+				if (RealVirtualMagic::skyrimVRESLInterface)
+				{
+					_MESSAGE("Got SkyrimVRESL interface");
+				}
+				else
+				{
+					_MESSAGE("Did not get SkyrimVRESL interface");
+				}
+			}
 		}
 	}
 
 	bool SKSEPlugin_Load(const SKSEInterface * skse) {	// Called by SKSE to load this plugin
-		
+
+		g_task = (SKSETaskInterface*)skse->QueryInterface(kInterface_Task);
+
 		g_papyrus = (SKSEPapyrusInterface *)skse->QueryInterface(kInterface_Papyrus);
 
 		g_messaging = (SKSEMessagingInterface*)skse->QueryInterface(kInterface_Messaging);
