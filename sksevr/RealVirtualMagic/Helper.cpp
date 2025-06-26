@@ -15,7 +15,8 @@ namespace RealVirtualMagic
 	UInt32 strangeRunesModIndex = 9999;
 	std::string strangeRunesName = "StrangeRunes.esp";
 	RelocPtr<AIProcessManager*> g_AIProcessManager(0x1F831B0);
-
+	
+	RelocAddr<_PlayEffectShader> PlayEffectShader(0x2AE290);
 
 	std::string pluginName = "RealVirtualMagic.esp";
 
@@ -25,11 +26,21 @@ namespace RealVirtualMagic
 	UInt32 healRateSpellFormId = 0x0817;
 	UInt32 shieldSpellFormId = 0x0818;
 
+	UInt32 shieldPerk100FormId = 0x0D85;
+	UInt32 shieldPerk75FormId = 0x0D86;
+	UInt32 shieldPerk50FormId = 0x0D87;
+	UInt32 shieldPerk25FormId = 0x0D88;
+
 	SpellItem* magickaSpell;
 	SpellItem* magickaRateSpell;
 	SpellItem* healthSpell;
 	SpellItem* healRateSpell;
 	SpellItem* shieldSpell;
+
+	BGSPerk* shieldPerk100;
+	BGSPerk* shieldPerk75;
+	BGSPerk* shieldPerk50;
+	BGSPerk* shieldPerk25;
 
 
 	UInt32 alterationPowerFormId = 0x0819;
@@ -99,6 +110,13 @@ namespace RealVirtualMagic
 	EffectSetting* shoutRecoveryIncEffect;
 	EffectSetting* shoutRecoveryDecEffect;
 
+
+	UInt32 shieldEffectShaderFormId = 0x00081E;
+	TESEffectShader* shieldEffectShader;
+
+
+	BGSPerk* chosenShieldPerk;
+
 	void FillSpellWithFormId(UInt32 baseFormId, SpellItem** targetSpell)
 	{
 		const UInt32 fullFormId = GetFullFormIdFromEspAndFormId(pluginName.c_str(), GetBaseFormID(baseFormId));
@@ -121,6 +139,29 @@ namespace RealVirtualMagic
 		}
 	}
 
+
+	void FillPerkWithFormId(UInt32 baseFormId, BGSPerk** targetPerk)
+	{
+		const UInt32 fullFormId = GetFullFormIdFromEspAndFormId(pluginName.c_str(), GetBaseFormID(baseFormId));
+		if (fullFormId > 0)
+		{
+			TESForm* form = LookupFormByID(fullFormId);
+			if (form)
+			{
+				*targetPerk = DYNAMIC_CAST(form, TESForm, BGSPerk);
+				if (targetPerk)
+					LOG_ERR("Perk found. formid: %x", fullFormId);
+				else
+					LOG_ERR("Perk null. formid: %x", fullFormId);
+
+			}
+			else
+			{
+				LOG_ERR("Perk not found. formid: %x", fullFormId);
+			}
+		}
+	}
+
 	void FillMagicEffectWithFormId(UInt32 baseFormId, EffectSetting** targetEffect)
 	{
 		const UInt32 fullFormId = GetFullFormIdFromEspAndFormId(pluginName.c_str(), GetBaseFormID(baseFormId));
@@ -134,6 +175,23 @@ namespace RealVirtualMagic
 			else
 			{
 				LOG_ERR("Magicka Spell not found. formid: %x", fullFormId);
+			}
+		}
+	}
+
+	void FillEffectShaderWithFormId(UInt32 baseFormId, TESEffectShader** effectShader)
+	{
+		const UInt32 fullFormId = GetFullFormIdFromEspAndFormId(pluginName.c_str(), GetBaseFormID(baseFormId));
+		if (fullFormId > 0)
+		{
+			TESForm* form = LookupFormByID(fullFormId);
+			if (form)
+			{
+				*effectShader = DYNAMIC_CAST(form, TESForm, TESEffectShader);
+			}
+			else
+			{
+				LOG_ERR("Effect shader not found. formid: %x", fullFormId);
 			}
 		}
 	}
@@ -163,8 +221,12 @@ namespace RealVirtualMagic
 			FillSpellWithFormId(magickaRateSpellFormId, &magickaRateSpell);
 			FillSpellWithFormId(healthSpellFormId, &healthSpell);
 			FillSpellWithFormId(healRateSpellFormId, &healRateSpell);
-
 			FillSpellWithFormId(shieldSpellFormId, &shieldSpell);
+
+			FillPerkWithFormId(shieldPerk100FormId, &shieldPerk100);
+			FillPerkWithFormId(shieldPerk75FormId, &shieldPerk75);
+			FillPerkWithFormId(shieldPerk50FormId, &shieldPerk50);
+			FillPerkWithFormId(shieldPerk25FormId, &shieldPerk25);
 
 			FillSpellWithFormId(alterationPowerFormId, &alterationPowerSpell);
 			FillSpellWithFormId(conjurationPowerFormId, &conjurationPowerSpell);
@@ -195,6 +257,8 @@ namespace RealVirtualMagic
 			FillMagicEffectWithFormId(restorationPowerDecEffectFormId, &restorationPowerDecEffect);
 			FillMagicEffectWithFormId(shoutRecoveryIncEffectFormId, &shoutRecoveryIncEffect);
 			FillMagicEffectWithFormId(shoutRecoveryDecEffectFormId, &shoutRecoveryDecEffect);
+
+			FillEffectShaderWithFormId(shieldEffectShaderFormId, &shieldEffectShader);
 		}
 	}
 
@@ -431,7 +495,58 @@ namespace RealVirtualMagic
 		delete this;
 	}
 
+	taskRemoveAllShieldPerks::taskRemoveAllShieldPerks()
+	{
+	}
 
+	void taskRemoveAllShieldPerks::Run()
+	{
+		if (DoesPlayerHavePerk(shieldPerk100))
+			(*g_thePlayer)->RemovePerk(shieldPerk100);
+		if (DoesPlayerHavePerk(shieldPerk75))
+			(*g_thePlayer)->RemovePerk(shieldPerk75);
+		if (DoesPlayerHavePerk(shieldPerk50))
+			(*g_thePlayer)->RemovePerk(shieldPerk50);
+		if (DoesPlayerHavePerk(shieldPerk25))
+			(*g_thePlayer)->RemovePerk(shieldPerk25);
+	}
+
+	void taskRemoveAllShieldPerks::Dispose()
+	{
+		delete this;
+	}
+
+
+
+	taskAddPerk::taskAddPerk(BGSPerk* akPerk)
+	{
+		m_akPerk = akPerk;
+	}
+
+	void taskAddPerk::Run()
+	{
+		(*g_thePlayer)->AddPerk(m_akPerk, 1);
+	}
+
+	void taskAddPerk::Dispose()
+	{
+		delete this;
+	}
+
+	taskRemovePerk::taskRemovePerk(BGSPerk* akPerk)
+	{
+		m_akPerk = akPerk;
+	}
+
+	void taskRemovePerk::Run()
+	{
+		(*g_thePlayer)->RemovePerk(m_akPerk);
+	}
+
+	void taskRemovePerk::Dispose()
+	{
+		delete this;
+	}
 
 	taskDoCombatSpellApply::taskDoCombatSpellApply(SpellItem* spell, Actor* actor, UInt32 targetRefHandle)
 	{
@@ -544,7 +659,42 @@ namespace RealVirtualMagic
 		}
 	}
 
+	bool DoesPlayerHavePerk(BGSPerk* perk)
+	{
+		return CALL_MEMBER_FN((*g_thePlayer), HasPerk)(perk);
+	}
 
+	bool DoesPlayerHaveAnyShieldPerk(BGSPerk* perk)
+	{
+		return CALL_MEMBER_FN((*g_thePlayer), HasPerk)(perk);
+	}
+
+	BGSPerk* WhichShieldPerkToUse()
+	{
+		float percentage = shieldPercentage.get()->value;
+
+		if (percentage == 0) 
+		{
+			return nullptr;
+		}
+
+		if (percentage >= 87.5f) 
+		{  
+			return shieldPerk100;
+		}
+		else if (percentage >= 62.5f) 
+		{  
+			return shieldPerk75;
+		}
+		else if (percentage >= 37.5f) 
+		{  
+			return shieldPerk50;
+		}
+		else 
+		{
+			return shieldPerk25;
+		}
+	}
 
 	void AddOrRemoveSpells(SpellItem* spell, bool addOnly)
 	{

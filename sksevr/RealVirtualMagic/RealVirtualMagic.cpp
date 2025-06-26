@@ -32,27 +32,27 @@ namespace RealVirtualMagic
 	void InitializeIXRStream()
 	{
 		IXRIsInitializing = true;
-		LOG_ERR("Resolving LSL streams");
+		LOG("Resolving LSL streams");
 		std::vector<stream_info> results = resolve_stream("type", "IXR-metric", 1, 5.0);
 		if (results.empty()) {
-			LOG_ERR("No LSL streams found!");
+			LOG("No LSL streams found!");
 		}
 		else 
 		{
 			// Log found stream
 			std::string lslstring = results[0].as_xml();
-			LOG_ERR("Found stream: %s", lslstring.c_str());
+			LOG("Found stream: %s", lslstring.c_str());
 
 			if (results[0].name() == "BrainPower" && results[0].source_id() == "ixrflow_transmit_power") 
 			{
-				LOG_ERR("Creating stream inlet for BrainPower stream");
+				LOG("Creating stream inlet for BrainPower stream");
 				IXRStream = new stream_inlet(results[0], 1, 1);
 				IXRStream->set_postprocessing(post_clocksync | post_monotonize);
-				LOG_ERR("--------------- IXR Suite connected!!! ---------------");
+				LOG("--------------- IXR Suite connected!!! ---------------");
 				IXRInitialized = true;
 			}
 			else {
-				LOG_ERR("Found stream is not the BrainPower stream we're looking for");
+				LOG("Found stream is not the BrainPower stream we're looking for");
 			}
 		}
 		IXRIsInitializing = false;
@@ -61,13 +61,13 @@ namespace RealVirtualMagic
 	void CreateEventStream()
 	{
 		eventMarkersIsInitializing = true;
-		LOG_ERR("Creating event marker stream outlet");
+		LOG("Creating event marker stream outlet");
 		// Marker streams are irregular and usually have channel format string
 		stream_info info("RVM-events", "Markers", 1, IRREGULAR_RATE, cf_string, "RVM_Events_01");
 		eventOutlet = new stream_outlet(info);  // Create a new stream_outlet with the defined stream_info
 		eventMarkersIsInitializing = false;
 		eventMarkersInitialized = true;
-		LOG_ERR("--------------- Marker stream created!!! ---------------");
+		LOG("--------------- Marker stream created!!! ---------------");
 	}
 
 	void CreateSystem()
@@ -75,7 +75,7 @@ namespace RealVirtualMagic
 		if (creationCounter < creationCounterMax)
 		{
 			creationCounter++;
-			LOG_ERR("Creating LSL system %i / %i", creationCounter, creationCounterMax);
+			LOG("Creating LSL system %i / %i", creationCounter, creationCounterMax);
 			
 			if (!IXRInitialized && !IXRIsInitializing)
 			{
@@ -95,34 +95,55 @@ namespace RealVirtualMagic
 	double GetFocusValue()
 	{
 		if (!IXRInitialized) {
-			LOG_ERR("IXRStream is not initialized. Attempting to initialize.");
+			LOG("IXRStream is not initialized. Attempting to initialize.");
 			CreateSystem();
 			return 0.0;
 		}
 
-		// Create a buffer for the incoming sample
+		double latest_timestamp = 0.0;
+		double latest_value = 0.0;
 		std::vector<double> sample;
 
-		// Pull the next sample from the IXRStream
-		double timestamp = IXRStream->pull_sample(sample,5.0); // this will block if no stream is available at the moment and continue as soon as it is
-		
-		if (sample.empty() || sample[0]==0.0){
+		// Brute force method
+		double timestamp = IXRStream->pull_sample(sample, 0.1); // 100ms timeout for first sample
+		if (timestamp != 0.0) 
+		{
+			latest_timestamp = timestamp;
+			latest_value = sample[0];
+
+			while (true) 
+			{
+				timestamp = IXRStream->pull_sample(sample, 0.005); // 5ms timeout for additional samples
+				if (timestamp == 0.0) 
+				{
+					break;
+				}
+				if (timestamp > latest_timestamp)
+				{
+					latest_timestamp = timestamp;
+					latest_value = sample[0];
+				}
+			}
+		}
+
+		if (latest_value < 0.0 || latest_value > 1.0)
+		{
+			LOG("Warning: Brain power value outside expected range 0.0-1.0");
+		}
+
+		if (latest_value == 0.0)
+		{
 			delete IXRStream;
 			IXRStream = nullptr;
 			IXRInitialized = false;
-			LOG_ERR("--------------- No sample available. IXRStream stream inlet closed!!! ---------------");
+			LOG("--------------- No sample available. IXRStream stream inlet closed!!! ---------------");
 			return 0.0;
 		}
 
-		double value = sample[0];
 		//LOG_ERR("Received raw brain power value: %g", value);
 
-		if (value < 0.0 || value > 1.0) {
-			LOG_ERR("Warning: Brain power value outside expected range 0.0-1.0");
-		}
-
-		LOG("LSL-timestamp: %g, brain power: %g", timestamp, value);
-		return value;
+		LOG("LSL-timestamp: %g, brain power: %g", latest_timestamp, latest_value);
+		return latest_value;
 	}
 
 	void WriteEventMarker(const std::string& eventType)

@@ -13,6 +13,11 @@ namespace RealVirtualMagic
 	extern SpellItem* healRateSpell;
 	extern SpellItem* shieldSpell;
 
+	extern BGSPerk* shieldPerk100;
+	extern BGSPerk* shieldPerk75;
+	extern BGSPerk* shieldPerk50;
+	extern BGSPerk* shieldPerk25;
+
 	extern SpellItem* alterationPowerSpell;
 	extern SpellItem* conjurationPowerSpell;
 	extern SpellItem* destructionPowerSpell;
@@ -43,6 +48,12 @@ namespace RealVirtualMagic
 
 	extern EffectSetting* shoutRecoveryIncEffect;
 	extern EffectSetting* shoutRecoveryDecEffect;
+
+	extern TESEffectShader* shieldEffectShader;
+
+	extern BGSPerk* chosenShieldPerk;
+	
+	
 
 	typedef void(*_DamageActorValue)(VMClassRegistry* VMinternal, UInt32 stackId, Actor* thisActor, BSFixedString const& dmgValueName, float dmg);
 	extern RelocAddr<_DamageActorValue> DamageActorValue; 
@@ -92,6 +103,8 @@ namespace RealVirtualMagic
 	void ChangeSpellEffects(SpellItem* spell, EffectSetting* incEffect, EffectSetting* decEffect, float newMagnitude);
 	bool CheckIfPlayerHaveEffectsAndGetCurrentMagnitude(EffectSetting* decEffect, EffectSetting* incEffect, float& currentMag);
 	void UpdatePlayerSpellEffects(SpellItem* spell, EffectSetting* incEffect, EffectSetting* decEffect, float newMagnitude, float minChangeAmount);
+	bool DoesPlayerHavePerk(BGSPerk* perk);
+	BGSPerk* WhichShieldPerkToUse();
 
 	void LoadValues();
 
@@ -147,6 +160,8 @@ namespace RealVirtualMagic
 		UInt32				pad44;			// 44
 	};
 	STATIC_ASSERT(offsetof(ReferenceEffect, controller) == 0x30);
+	STATIC_ASSERT(offsetof(ReferenceEffect, finished) == 0x40);
+	STATIC_ASSERT(sizeof(ReferenceEffect) == 0x48);
 
 	struct ShaderReferenceEffect : ReferenceEffect
 	{
@@ -170,6 +185,7 @@ namespace RealVirtualMagic
 		std::uint32_t		  pushCount;		 // 134
 	};
 	STATIC_ASSERT(offsetof(ShaderReferenceEffect, pushCount) == 0x134);
+	STATIC_ASSERT(sizeof(ShaderReferenceEffect) == 0x138);
 
 	struct ModelReferenceEffect : ReferenceEffect
 	{
@@ -287,6 +303,37 @@ namespace RealVirtualMagic
 		SpellItem* m_akSpell;
 	};
 
+
+
+	class taskAddPerk : public TaskDelegate
+	{
+	public:
+		virtual void Run();
+		virtual void Dispose();
+
+		taskAddPerk(BGSPerk* akPerk);
+		BGSPerk* m_akPerk;
+	};
+
+	class taskRemovePerk : public TaskDelegate
+	{
+	public:
+		virtual void Run();
+		virtual void Dispose();
+
+		taskRemovePerk(BGSPerk* akPerk);
+		BGSPerk* m_akPerk;
+	};
+
+	class taskRemoveAllShieldPerks : public TaskDelegate
+	{
+	public:
+		virtual void Run();
+		virtual void Dispose();
+
+		taskRemoveAllShieldPerks();
+	};
+
 	class taskDoCombatSpellApply : public TaskDelegate
 	{
 	public:
@@ -298,4 +345,9 @@ namespace RealVirtualMagic
 		SpellItem* m_spell;
 		Actor* m_actor;
 	};
+
+
+
+	typedef ShaderReferenceEffect* (*_PlayEffectShader)(TESObjectREFR* ref, TESEffectShader* effectShader, float duration, TESObjectREFR* facingRef, UInt8 a5, UInt8 a6, __int64 a7, bool a8);
+	extern RelocAddr <_PlayEffectShader> PlayEffectShader;
 }

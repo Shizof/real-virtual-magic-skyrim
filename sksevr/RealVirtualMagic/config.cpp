@@ -30,6 +30,10 @@ namespace RealVirtualMagic
 	std::shared_ptr<IniSetting> modifyMagicPower;
 	std::shared_ptr<IniSetting> damageHealth;
 	std::shared_ptr<IniSetting> activateShield;
+	std::shared_ptr<IniSetting> shieldDuration;
+	std::shared_ptr<IniSetting> shieldPercentage;
+	std::shared_ptr<IniSetting> shieldColor;
+	std::shared_ptr<IniSetting> shieldParticleAmount;
 	std::shared_ptr<IniSetting> outOfCombatActive;
 	std::shared_ptr<IniSetting> modifyShoutRecovery;
 	std::shared_ptr<IniSetting> minShoutRecovery;
@@ -53,6 +57,10 @@ namespace RealVirtualMagic
 		{"modifyMagicPower", std::make_shared<IniSetting>(1, 0, 1, 1, "modifyMagicPower")},
 		{"damageHealth", std::make_shared<IniSetting>(1, 0, 1, 1, "damageHealth")},
 		{"activateShield", std::make_shared<IniSetting>(1, 0, 1, 1, "activateShield")},
+		{"shieldDuration", std::make_shared<IniSetting>(5.0, 0, 1000.0, 0.1, "shieldDuration")},
+		{"shieldPercentage", std::make_shared<IniSetting>(100, 0, 100, 25, "shieldPercentage")},
+		{"shieldColor", std::make_shared<IniSetting>(0, 0, 16777215, 1, "shieldColor")},
+		{"shieldParticleAmount", std::make_shared<IniSetting>(5, 0, 100, 1, "shieldParticleAmount")},
 		{"outOfCombatActive", std::make_shared<IniSetting>(1, 0, 1, 1, "outOfCombatActive")},
 		{"modifyShoutRecovery", std::make_shared<IniSetting>(1, 0, 1, 1, "modifyShoutRecovery")},
 		{"minShoutRecovery", std::make_shared<IniSetting>(-50, -100, 100, 1, "minShoutRecovery")},
@@ -77,6 +85,10 @@ namespace RealVirtualMagic
 		modifyMagicPower = iniSettingsMap["modifyMagicPower"];
 		damageHealth = iniSettingsMap["damageHealth"];
 		activateShield = iniSettingsMap["activateShield"];
+		shieldDuration = iniSettingsMap["shieldDuration"];
+		shieldPercentage = iniSettingsMap["shieldPercentage"];
+		shieldColor = iniSettingsMap["shieldColor"];
+		shieldParticleAmount = iniSettingsMap["shieldParticleAmount"];
 		modifyShoutRecovery = iniSettingsMap["modifyShoutRecovery"];
 		minShoutRecovery = iniSettingsMap["minShoutRecovery"];
 		maxShoutRecovery = iniSettingsMap["maxShoutRecovery"];
@@ -117,86 +129,102 @@ namespace RealVirtualMagic
 						else
 						{							
 							std::string variableName;
-							int variableValue = GetConfigSettingsValue(line, variableName);
+							std::string variableValueStr = GetConfigSettingsStringValue(line, variableName);
 							if (variableName == "logging")
 							{
-								logging.get()->value = variableValue;
+								logging.get()->value = std::stoi(variableValueStr);
 							}
 							else if (variableName == "minMagickaRate")
 							{
-								minMagickaRate.get()->value = GetConfigSettingsFloatValue(line, variableName);
+								minMagickaRate.get()->value = strtof(variableValueStr.c_str(), 0);
 							}
 							else if (variableName == "maxMagickaRate")
 							{
-								maxMagickaRate.get()->value = GetConfigSettingsFloatValue(line, variableName);
+								maxMagickaRate.get()->value = strtof(variableValueStr.c_str(), 0);
 							}
 							else if (variableName == "minSpellpower")
 							{
-								minSpellpower.get()->value = GetConfigSettingsFloatValue(line, variableName);
+								minSpellpower.get()->value = strtof(variableValueStr.c_str(), 0);
 							}
 							else if (variableName == "maxSpellpower")
 							{
-								maxSpellpower.get()->value = GetConfigSettingsFloatValue(line, variableName);
+								maxSpellpower.get()->value = strtof(variableValueStr.c_str(), 0);
 							}
 							else if (variableName == "unstableMagicDamage")
 							{
-								unstableMagicDamage.get()->value = GetConfigSettingsFloatValue(line, variableName);
+								unstableMagicDamage.get()->value = strtof(variableValueStr.c_str(), 0);
 							}
 							else if (variableName == "unstableMagicThreshold")
 							{
-								unstableMagicThreshold.get()->value = GetConfigSettingsFloatValue(line, variableName);
+								unstableMagicThreshold.get()->value = strtof(variableValueStr.c_str(), 0);
 							}
 							else if (variableName == "shieldActivationFocus")
 							{
-								shieldActivationFocus.get()->value = GetConfigSettingsFloatValue(line, variableName);
+								shieldActivationFocus.get()->value = strtof(variableValueStr.c_str(), 0);
+							}
+							else if (variableName == "shieldDuration")
+							{
+								shieldDuration.get()->value = strtof(variableValueStr.c_str(), 0);
+							}
+							else if (variableName == "shieldPercentage")
+							{
+								shieldPercentage.get()->value = strtof(variableValueStr.c_str(), 0);
+							}
+							else if (variableName == "shieldColor")
+							{
+								shieldColor.get()->value = HexStringToColor(variableValueStr);
+							}
+							else if (variableName == "shieldParticleAmount")
+							{
+								shieldParticleAmount.get()->value = strtof(variableValueStr.c_str(), 0);
 							}
 							else if (variableName == "minimumUpdatePercent")
 							{
-								minimumUpdatePercent.get()->value = GetConfigSettingsFloatValue(line, variableName);
+								minimumUpdatePercent.get()->value = strtof(variableValueStr.c_str(), 0);
 							}
 							else if (variableName == "modifyMagicka")
 							{
-								modifyMagicka.get()->value = variableValue;
+								modifyMagicka.get()->value = std::stoi(variableValueStr);
 							}
 							else if (variableName == "modifyMagickaRate")
 							{
-								modifyMagickaRate.get()->value = variableValue;
+								modifyMagickaRate.get()->value = std::stoi(variableValueStr);
 							}
 							else if (variableName == "modifyMagicPower")
 							{
-								modifyMagicPower.get()->value = variableValue;
+								modifyMagicPower.get()->value = std::stoi(variableValueStr);
 							}
 							else if (variableName == "damageHealth")
 							{
-								damageHealth.get()->value = variableValue;
+								damageHealth.get()->value = std::stoi(variableValueStr);
 							}
 							else if (variableName == "activateShield")
 							{
-								activateShield.get()->value = variableValue;
+								activateShield.get()->value = std::stoi(variableValueStr);
 							}
 							else if (variableName == "outOfCombatActive")
 							{
-								outOfCombatActive.get()->value = variableValue;
+								outOfCombatActive.get()->value = std::stoi(variableValueStr);
 							}
 							else if (variableName == "useDebugger")
 							{
-								useDebugger.get()->value = variableValue;
+								useDebugger.get()->value = std::stoi(variableValueStr);
 							}
 							else if (variableName == "useBCI")
 							{
-								useBCI.get()->value = variableValue;
+								useBCI.get()->value = std::stoi(variableValueStr);
 							}
 							else if (variableName == "modifyShoutRecovery")
 							{
-								modifyShoutRecovery.get()->value = variableValue;
+								modifyShoutRecovery.get()->value = std::stoi(variableValueStr);
 							}
 							else if (variableName == "minShoutRecovery")
 							{
-								minShoutRecovery.get()->value = variableValue;
+								minShoutRecovery.get()->value = strtof(variableValueStr.c_str(), 0);
 							}
 							else if (variableName == "maxShoutRecovery")
 							{
-								maxShoutRecovery.get()->value = variableValue;
+								maxShoutRecovery.get()->value = strtof(variableValueStr.c_str(), 0);
 							}
 							else
 							{
@@ -260,6 +288,9 @@ namespace RealVirtualMagic
 			output << "\n";
 			output << "activateShield = " << activateShield.get()->intValue() << " \t\t\t\t# Should activate shield when focus is high\n";
 			output << "shieldActivationFocus = " << shieldActivationFocus.get()->value << "\t\t\t# This is the minimum focus amount for shield activation\n";
+			output << "shieldDuration = " << shieldDuration.get()->value << "\t\t\t# This is the duration the shield will stay effective even if the focus drops.\n";
+			output << "shieldPercentage = " << shieldPercentage.get()->value << "\t\t\t# This is the percentage amount the shield will protect the player (Allowed values: 100,75,50,25,0)\n";
+			output << "shieldColor = " << ColorToHexString(shieldColor.get()->intValue()) << "\t\t\t# This is the color of the shield effect on player\n";
 			output << "\n";
 			output << "modifyShoutRecovery = " << modifyShoutRecovery.get()->intValue() << " \t\t\t\t# Should shout recovery be modified according to focus\n";
 			output << "minShoutRecovery = " << minShoutRecovery.get()->value << "\t\t\t\t# malus in % value of regular shout recovery multiplier when brain power is zero\n";
@@ -278,7 +309,7 @@ namespace RealVirtualMagic
 
 	void DisableConfigSavingModeThread()
 	{
-		Sleep(3000);
+		Sleep(4000);
 		configSavingMode.store(false);
 	}
 
@@ -298,8 +329,10 @@ namespace RealVirtualMagic
 		}
 
 		saveConfig();
+
 		if (disableNeeded)
 		{
+			AfterGameOpens(true);
 			std::thread t1(DisableConfigSavingModeThread);
 			t1.detach();
 		}

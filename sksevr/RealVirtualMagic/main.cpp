@@ -80,13 +80,21 @@ extern "C" {
 			else if (msg->type == SKSEMessagingInterface::kMessage_DataLoaded)
 			{				
 				RealVirtualMagic::loadConfig();
-				RealVirtualMagic::GameLoad();	
+				RealVirtualMagic::GameLoad();
+				RealVirtualMagic::AfterGameOpens(false);
 				RealVirtualMagic::StartFunction();
 			}
 			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoad)
 			{
 				// Register our own mod api listener
 				g_messaging->RegisterListener(g_pluginHandle, nullptr, RVMPluginApi::modMessageHandler);
+			}
+			else if (msg->type == SKSEMessagingInterface::kMessage_PostLoadGame)
+			{
+				if ((bool)(msg->data) == true)
+				{
+					RealVirtualMagic::AfterGameOpens(true);
+				}
 			}
 			else if (msg->type == SKSEMessagingInterface::kMessage_PostPostLoad)
 			{

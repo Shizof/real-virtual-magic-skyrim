@@ -14,6 +14,9 @@ namespace RealVirtualMagic
 	std::atomic<bool> LeftAimedStarted;
 	std::atomic<bool> RightAimedStarted;
 
+	std::atomic<double> lastShieldActivationTime{ 0.0 };
+	int shieldActive = -1;
+	
 	// Animation graph hook for the player that allows specific animations to be blocked from playing
 	typedef uint64_t(*IAnimationGraphManagerHolder_NotifyAnimationGraph_VFunc)(uintptr_t* iagmh, BSFixedString* animName);
 	IAnimationGraphManagerHolder_NotifyAnimationGraph_VFunc g_originalNotifyAnimationGraph = nullptr; // Normally a JMP to 0x00501530
@@ -120,6 +123,43 @@ namespace RealVirtualMagic
 		// return 0 to block the animation from playing
 		// Otherwise return...
 		return   g_originalNotifyAnimationGraph(iAnimationGraphManagerHolder, animationName);
+	}
+
+	void AfterGameOpens(bool postLoadGame)
+	{
+		RGB color = ColorToRGB(shieldColor.get()->intValue());
+		RGB darkerColor = GetDarkerColor(shieldColor.get()->intValue());
+		shieldEffectShader->data.colorKey1.red = color.r;
+		shieldEffectShader->data.colorKey1.green = color.g;
+		shieldEffectShader->data.colorKey1.blue = color.b;
+		shieldEffectShader->data.colorKey3.red = color.r;
+		shieldEffectShader->data.colorKey3.green = color.g;
+		shieldEffectShader->data.colorKey3.blue = color.b;
+		shieldEffectShader->data.edgeEffectColor.red = darkerColor.r;
+		shieldEffectShader->data.edgeEffectColor.green = darkerColor.g;
+		shieldEffectShader->data.edgeEffectColor.blue = darkerColor.b;
+		shieldEffectShader->data.fillTextureEffectColorKey1.red = color.r;
+		shieldEffectShader->data.fillTextureEffectColorKey1.green = color.g;
+		shieldEffectShader->data.fillTextureEffectColorKey1.blue = color.b;
+		shieldEffectShader->data.fillTextureEffectColorKey2.red = color.r;
+		shieldEffectShader->data.fillTextureEffectColorKey2.green = color.g;
+		shieldEffectShader->data.fillTextureEffectColorKey2.blue = color.b;
+		shieldEffectShader->data.fillTextureEffectColorKey3.red = darkerColor.r;
+		shieldEffectShader->data.fillTextureEffectColorKey3.green = darkerColor.g;
+		shieldEffectShader->data.fillTextureEffectColorKey3.blue = darkerColor.b;
+		if (postLoadGame)
+		{
+			ChangeSpellEffects(shieldSpell, shieldEffect, shieldEffect, shieldPercentage->value);
+
+			if (DoesPlayerHaveEffect(shieldEffect))
+			{
+				g_task->AddTask(new taskRemoveSpell(shieldSpell));
+			}
+			g_task->AddTask(new taskRemoveAllShieldPerks());
+		}
+		chosenShieldPerk = WhichShieldPerkToUse();
+		
+		shieldActive = -1;
 	}
 
 	void GameLoad()
@@ -269,7 +309,7 @@ namespace RealVirtualMagic
 		registry->RegisterFunction(new NativeFunction0<StaticFunctionTag, float>("GetBrainPower", "RealVirtualMagic_PluginScript", GetBrainPower, registry));
 
 		registry->RegisterFunction(new NativeFunction3<StaticFunctionTag, void, BSFixedString, UInt32, float>("SetValue", "RealVirtualMagic_PluginScript", SetValue, registry));
-
+		
 		registry->RegisterFunction(new NativeFunction1<StaticFunctionTag, float, BSFixedString>("GetValue", "RealVirtualMagic_PluginScript", GetValue, registry));
 
 		registry->RegisterFunction(new NativeFunction1 <StaticFunctionTag, float, BSFixedString>("GetSettingDefault", "RealVirtualMagic_PluginScript", GetSettingDefault, registry));
@@ -322,12 +362,34 @@ namespace RealVirtualMagic
 		WriteEventMarker("magicCast:stop");
 	}
 
+	bool ShouldShieldBeActive(double currentFocus) 
+	{
+		const double currentTime = lsl::local_clock();
+
+		if (currentFocus >= shieldActivationFocus.get()->value) 
+		{
+			lastShieldActivationTime.store(currentTime);
+			return true;
+		}
+
+		if (currentTime - lastShieldActivationTime.load() < shieldDuration.get()->value) 
+		{
+			return true;
+		}
+
+		return false;
+	}
+
+	double lastSetShieldPercentage = -100.0;
+	
 	void ApplyFocusValue(double newFocus)
 	{
 		if ((*g_thePlayer) != nullptr && (*g_thePlayer)->loadedState != nullptr && !isGameStoppedNoDialogue()) //Player is alive and Menu is not open
 		{
 			LOG("applying focus value of %g", newFocus);
-			const bool disableAllEffects = (outOfCombatActive.get()->boolValue() == false && isInCombat == false) || newFocus < -900.0 || configSavingMode.load();
+			const bool configSavingIsOn = configSavingMode.load();
+			const bool disableAllEffects = (outOfCombatActive.get()->boolValue() == false && isInCombat == false) || newFocus < -900.0 || configSavingIsOn;
+
 			LOG("disableAllEffects: %d", disableAllEffects);
 			if (modifyMagicPower.get()->boolValue() && !disableAllEffects)
 			{
@@ -425,20 +487,43 @@ namespace RealVirtualMagic
 				}
 			}
 
-			if (activateShield.get()->boolValue() && newFocus >= shieldActivationFocus.get()->value && !disableAllEffects)
+			if (chosenShieldPerk != nullptr)
 			{
-				//if (!HasSpell((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), shieldSpell))
-				if(!DoesPlayerHaveEffect(shieldEffect))
+				if (activateShield.get()->boolValue() && !disableAllEffects)
 				{
-					g_task->AddTask(new taskAddSpell(shieldSpell));
+					const bool shouldBeActive = ShouldShieldBeActive(newFocus);
+
+					bool playerHasPerk = DoesPlayerHavePerk(chosenShieldPerk);
+					if (shouldBeActive && !playerHasPerk && shieldActive!=1)
+					{
+						if (!DoesPlayerHaveEffect(shieldEffect))
+						{
+							g_task->AddTask(new taskAddSpell(shieldSpell));
+						}
+						g_task->AddTask(new taskAddPerk(chosenShieldPerk));
+						shieldActive = 1;
+					}
+					else if (!shouldBeActive && playerHasPerk && shieldActive != 0)
+					{
+						if (DoesPlayerHaveEffect(shieldEffect))
+						{
+							g_task->AddTask(new taskRemoveSpell(shieldSpell));
+						}
+						g_task->AddTask(new taskRemovePerk(chosenShieldPerk));
+						shieldActive = 0;
+					}
 				}
-			}
-			else
-			{
-				//if (HasSpell((*g_skyrimVM)->GetClassRegistry(), 0, (*g_thePlayer), shieldSpell))
-				if (DoesPlayerHaveEffect(shieldEffect))
+				else
 				{
-					g_task->AddTask(new taskRemoveSpell(shieldSpell));
+					if (shieldActive != 0)
+					{
+						if (DoesPlayerHaveEffect(shieldEffect))
+						{
+							g_task->AddTask(new taskRemoveSpell(shieldSpell));
+						}
+						g_task->AddTask(new taskRemoveAllShieldPerks());
+						shieldActive = 0;
+					}
 				}
 			}
 
@@ -502,9 +587,11 @@ namespace RealVirtualMagic
 
 			// wait for a bit to make sure the new settings are applied before logging
 			// Sleep(50);
-
-			LOG("new destruction: %g", GetDestruction());
-			LOG("new magicka rate: %g", GetMagickaRate());
+			if (logging)
+			{
+				LOG("new destruction: %g", GetDestruction());
+				LOG("new magicka rate: %g", GetMagickaRate());
+			}
 		}
 	}
 }

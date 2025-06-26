@@ -528,3 +528,47 @@ static inline float angleBetweenVectors(const NiPoint3& v1, const NiPoint3& v2)
 {
 	return std::acos(dot(v1, v2) / (magnitude(v1) * magnitude(v2))) * 57.295776f;
 }
+
+// Convert color int to hex string (FFFFFF format)
+static inline std::string ColorToHexString(int color) {
+	char hexString[7];
+	snprintf(hexString, sizeof(hexString), "%06X", color);
+	return std::string(hexString);
+}
+
+// Convert hex string (FFFFFF format) to color int
+static inline int HexStringToColor(const std::string& hexString) {
+	// Skip "0x" prefix if present
+	const char* str = hexString.c_str();
+	if (hexString.length() >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
+		str += 2;
+	}
+
+	unsigned int color;
+	sscanf_s(str, "%X", &color);
+	return static_cast<int>(color);
+}
+
+// Convert color int to RGB values
+struct RGB {
+	int r, g, b;
+};
+
+static inline RGB ColorToRGB(int color) {
+	RGB rgb;
+	rgb.r = (color >> 16) & 0xFF;  // Red
+	rgb.g = (color >> 8) & 0xFF;   // Green
+	rgb.b = color & 0xFF;          // Blue
+	return rgb;
+}
+
+static inline RGB GetDarkerColor(int colorKey2) {
+	RGB key2 = ColorToRGB(colorKey2);
+	RGB key3;
+
+	key3.r = static_cast<int>(key2.r * 0.234f);
+	key3.g = static_cast<int>(key2.g * 0.234f);
+	key3.b = static_cast<int>(key2.b * 0.492f);
+
+	return key3;
+}

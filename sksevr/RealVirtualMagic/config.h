@@ -67,6 +67,7 @@ namespace RealVirtualMagic
 	void loadConfig();
 		
 	void saveConfig();
+	void AfterGameOpens(bool postLoadGame);
 
 	extern unsigned short hapticFrequency;
 	extern int hapticStrength;
@@ -103,6 +104,9 @@ namespace RealVirtualMagic
 	extern std::shared_ptr<IniSetting> modifyMagicPower;
 	extern std::shared_ptr<IniSetting> damageHealth;
 	extern std::shared_ptr<IniSetting> activateShield;
+	extern std::shared_ptr<IniSetting> shieldDuration;
+	extern std::shared_ptr<IniSetting> shieldPercentage;
+	extern std::shared_ptr<IniSetting> shieldColor;
 	extern std::shared_ptr<IniSetting> modifyShoutRecovery;
 	extern std::shared_ptr<IniSetting> minShoutRecovery;
 	extern std::shared_ptr<IniSetting> maxShoutRecovery;
